@@ -1,12 +1,12 @@
-### Fast Past - Aplicație web pentru organizarea de conferințe
+# Fast Past - Aplicație web pentru organizarea de conferințe
 
 ## Specificatii proiect și planul de proiect
 
 
-# Specificatii proiect
+### Specificatii proiect
 
- _1.1. Titlul proiectului_
-	Titlul proiectului nostru este MindMeet - aplicație web pentru organizarea și gestionarea conferințelor științifice.
+ _1.1. Titlul proiectului_  
+	Titlul proiectului nostru este MindMeet - aplicație web pentru organizarea și gestionarea conferințelor științifice.  
 
  _1.2. Obiectiv_
  Obiectivul proiectului nostru este sa realizam o aplicatie web in care se pot organiza si gestiona conferinte stiintifice ce au ca scop colaborarea organizatorilor, autorilor și reviewerilor pentru înscrierea, evaluarea și aprobarea articolelor științifice.
