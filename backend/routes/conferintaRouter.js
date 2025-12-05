@@ -28,4 +28,51 @@ router.post('/conferinte', async (req, res) => {
     }
 });
 
+
+// RUTA GET by ID: Returnează o conferință după ID
+router.get('/conferinte/:idConferinta', async (req, res) => {
+    try {
+        const conferintaId = parseInt(req.params.idConferinta);
+
+        const conferinta = await Conferinta.findByPk(conferintaId);
+
+        if (!conferinta) {
+            return res.status(404).json({ message: "Conferința nu a fost găsită." });
+        }
+
+        res.status(200).json(conferinta);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la preluarea conferinței." });
+    }
+});
+
+
+// RUTA DELETE by ID: Șterge o conferință după ID
+
+router.delete('/conferinte/:idConferinta', async (req, res) => {
+    // middleware de autorizare
+
+    try {
+        const conferintaId = parseInt(req.params.idConferinta);
+
+        const deletedRowCount = await Conferinta.destroy({
+            where: {
+                id: conferintaId
+            }
+        });
+
+        if (deletedRowCount === 0) {
+            return res.status(404).json({ message: "Conferința nu a fost găsită." });
+        }
+
+        res.sendStatus(204);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la ștergerea conferinței." });
+    }
+});
+
 module.exports = router;

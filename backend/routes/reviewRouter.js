@@ -28,4 +28,47 @@ router.post('/reviews', async (req, res) => {
     }
 });
 
+// RUTA GET by ID: Returnează un review după ID
+router.get('/reviews/:idReview', async (req, res) => {
+    try {
+        const reviewId = parseInt(req.params.idReview);
+
+        const review = await Review.findByPk(reviewId);
+
+        if (!review) {
+            return res.status(404).json({ message: "Review-ul nu a fost găsit." });
+        }
+
+        res.status(200).json(review);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la preluarea review-ului." });
+    }
+});
+
+
+// RUTA DELETE by ID: Șterge un review după ID
+router.delete('/reviews/:idReview', async (req, res) => {
+    try {
+        const reviewId = parseInt(req.params.idReview);
+
+        const deletedRowCount = await Review.destroy({
+            where: {
+                id: reviewId
+            }
+        });
+
+        if (deletedRowCount === 0) {
+            return res.status(404).json({ message: "Review-ul nu a fost găsit." });
+        }
+
+        res.status(202).json({ message: "Review șters cu succes." });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la ștergerea review-ului." });
+    }
+});
+
 module.exports = router;

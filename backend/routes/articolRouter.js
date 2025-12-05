@@ -27,4 +27,47 @@ router.post('/articole', async (req, res) => {
     }
 });
 
+// RUTA DELETE: Șterge un articol după ID
+router.delete('/articole/:idArticol', async (req, res) => {
+    try {
+        const articolId = parseInt(req.params.idArticol);
+
+        const deletedRowCount = await Articol.destroy({
+            where: {
+                id: articolId
+            }
+        });
+
+        if (deletedRowCount === 0) {
+            // Dacă nu s-a șters niciun rând, articolul nu a fost găsit
+            return res.status(404).json({ message: "Articolul nu a fost găsit." });
+        }
+
+        res.sendStatus(204);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la ștergerea articolului." });
+    }
+});
+
+// RUTA GET: Returnează un articol după ID
+router.get('/articole/:idArticol', async (req, res) => {
+    try {
+        const articolId = parseInt(req.params.idArticol);
+
+        const articol = await Articol.findByPk(articolId);
+
+        if (!articol) {
+            return res.status(404).json({ message: "Articolul nu a fost găsit." });
+        }
+
+        res.status(200).json(articol);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la preluarea articolului." });
+    }
+});
+
 module.exports = router;

@@ -68,4 +68,46 @@ router.post('/utilizatori', async (req, res) => {
     }
 });
 
+// RUTA DELETE: Șterge un utilizator după ID
+router.delete('/utilizatori/:idUtilizator', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.idUtilizator);
+
+    
+        const deletedRowCount = await Utilizator.destroy({
+            where: {
+                id: userId
+            }
+        });
+
+        if (deletedRowCount === 0) {
+            return res.status(404).json({ message: "Utilizatorul nu a fost găsit." });
+        }
+
+        res.status(202).json({ message: "Utilizator șters cu succes." });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la ștergerea utilizatorului." });
+    }
+});
+
+router.get('/utilizatori/:idUtilizator', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.idUtilizator);
+
+        const utilizator = await Utilizator.findByPk(userId);
+
+        if (!utilizator) {
+            return res.status(404).json({ message: "Utilizatorul nu a fost găsit." });
+        }
+
+        res.status(200).json(utilizator);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la preluarea utilizatorului." });
+    }
+});
+
 module.exports = router;
