@@ -9,7 +9,7 @@ const Review = sequelize.define('review', {
     verdict:{
         type: DataTypes.ENUM,
         values: ['ACCEPTAT', 'RESPINS', 'NECESITA_MODIFICARI'],
-        allowNull: false
+        allowNull: true //Cand este alocat automat un reviewer, verdictul inca este inexistent.
     },
     dataReview:{
         type: DataTypes.DATE,

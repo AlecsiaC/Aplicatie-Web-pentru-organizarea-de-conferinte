@@ -14,9 +14,18 @@ const Articol = sequelize.define('articol', {
     //     type: DataTypes.INTEGER,
     //     allowNull: false,
     // }
-    caleFisier:{
+    caleFisier:{ //Aici stocam numele fisierului sau link-ul
         type: DataTypes.STRING,
         allowNull: false
+    },
+    versiune: {
+        type: DataTypes.INTEGER,
+        defaultValue: 1,
+        allowNull:false
+    },
+    articolInitialId: { //Grupare versiuni
+        type: DataTypes.INTEGER,
+        allowNull: true
     },
     dataIncarcare:{
         type: DataTypes.DATE,

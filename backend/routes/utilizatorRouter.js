@@ -16,6 +16,8 @@ router.get('/utilizatori', async (req, res) => {
     }
 });
 
+
+
 //RUTE GET pt toate rolurile
 router.get('/utilizatori/autori', async (req, res) => {
     try {
@@ -57,12 +59,54 @@ router.get('/utilizatori/organizatori', async (req, res) => {
     }
 });
 
+// RUTA POST: Login (Verificare credențiale)
+router.post('/login', async (req, res) => {
+    try {
+        const { email, parola } = req.body;
+
+        // 1. Căutăm utilizatorul după email
+        const user = await Utilizator.findOne({ where: { email } });
+
+        if (!user) {
+            return res.status(404).json({ message: "Utilizator nu există." });
+        }
+
+        // 2. Verificăm parola (Simplificat, fără criptare momentan)
+        if (user.parola !== parola) {
+            return res.status(401).json({ message: "Parolă incorectă." });
+        }
+
+        // 3. Returnăm succes și datele userului (inclusiv ID-ul și ROLUL)
+        // Frontend-ul va avea nevoie de ID și ROL ca să știe ce butoane să arate.
+        res.status(200).json({
+            message: "Login reușit!",
+            user: {
+                id: user.id,
+                nume: user.numeUtilizator,
+                email: user.email,
+                rol: user.rol
+            }
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare la login." });
+    }
+});
+
 // RUTA POST: Creează un utilizator
 router.post('/utilizatori', async (req, res) => {
     try {
         const nouUtilizator = await Utilizator.create(req.body);
         res.status(201).json(nouUtilizator);
     } catch (err) {
+        if (err.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ message: "Acest email este deja folosit." });
+        }
+        if (err.name === 'SequelizeValidationError') {
+             return res.status(400).json({ message: "Date invalide (verifică formatul email-ului)." });
+        }
+
         console.error(err);
         res.status(500).json({ message: "Eroare la crearea utilizatorului" });
     }

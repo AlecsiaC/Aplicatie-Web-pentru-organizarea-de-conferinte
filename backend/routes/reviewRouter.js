@@ -1,73 +1,69 @@
-// backend/routes/reviewRouter.js
 const express = require('express');
 const router = express.Router();
-
-// Importăm modelul Review
 const Review = require('../models/review');
+const Articol = require('../models/articol');
 
-// RUTA GET: Vedem toate review-urile (util pentru admin/organizator)
-router.get('/reviews', async (req, res) => {
+// RUTA GET: Reviewer-ul își vede review-urile alocate
+// Exemplu: GET /reviews/reviewer/2
+router.get('/reviews/reviewer/:idReviewer', async (req, res) => {
     try {
-        const reviews = await Review.findAll();
+        const reviews = await Review.findAll({
+            where: { reviewerId: req.params.idReviewer },
+            include: [{model: Articol, as: 'Articol'}] // Ca să vadă și titlul articolului pe care îl corectează
+        });
         res.status(200).json(reviews);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Eroare la preluarea review-urilor" });
+        res.status(500).json({ message: "Eroare server" });
     }
 });
 
-// RUTA POST: Adăugarea unui review (Aprobare/Respingere + Feedback)
-router.post('/reviews', async (req, res) => {
+// RUTA PUT: Reviewer-ul dă verdictul
+// Exemplu: PUT /reviews/5 (unde 5 e ID-ul review-ului alocat)
+router.put('/reviews/:idReview', async (req, res) => {
     try {
-        const nouReview = await Review.create(req.body);
-        res.status(201).json(nouReview);
-    } catch (err) {
-        console.error(err);
-        // Daca verdictul nu e unul din cele 3 valori ENUM, va intra aici
-        res.status(500).json({ message: "Eroare la crearea review-ului. Verifică verdictul!" });
-    }
-});
+        const { idReview } = req.params;
+        const { verdict, continut } = req.body;
 
-// RUTA GET by ID: Returnează un review după ID
-router.get('/reviews/:idReview', async (req, res) => {
-    try {
-        const reviewId = parseInt(req.params.idReview);
-
-        const review = await Review.findByPk(reviewId);
+        const review = await Review.findByPk(idReview);
 
         if (!review) {
-            return res.status(404).json({ message: "Review-ul nu a fost găsit." });
+            return res.status(404).json({ message: "Review-ul nu există." });
         }
 
-        res.status(200).json(review);
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare la preluarea review-ului." });
-    }
-});
-
-
-// RUTA DELETE by ID: Șterge un review după ID
-router.delete('/reviews/:idReview', async (req, res) => {
-    try {
-        const reviewId = parseInt(req.params.idReview);
-
-        const deletedRowCount = await Review.destroy({
-            where: {
-                id: reviewId
-            }
+        // Actualizăm review-ul
+        await review.update({
+            verdict,
+            continut,
+            dataReview: new Date()
         });
 
-        if (deletedRowCount === 0) {
-            return res.status(404).json({ message: "Review-ul nu a fost găsit." });
+        // ----------------------------------------------------
+        // LOGICA COMPLEXĂ: Calculăm dacă Articolul e ACCEPTAT
+        // ----------------------------------------------------
+        // Căutăm toate review-urile acestui articol
+        const toateReviewurile = await Review.findAll({ where: { articolId: review.articolId } });
+        
+        // Verificăm dacă toți au dat 'ACCEPTAT'
+        const toateAcceptate = toateReviewurile.every(r => r.verdict === 'ACCEPTAT');
+        const unulRespins = toateReviewurile.some(r => r.verdict === 'RESPINS');
+
+        const articol = await Articol.findByPk(review.articolId);
+
+        if (toateAcceptate && toateReviewurile.length >= 2) {
+            await articol.update({ status: 'ACCEPTAT' });
+        } else if (unulRespins) {
+            await articol.update({ status: 'RESPINS' });
+        } else {
+            // Dacă unul a zis acceptat și altul modificări, rămâne în evaluare sau cere modificări
+            await articol.update({ status: 'NECESITA_MODIFICARI' });
         }
 
-        res.status(202).json({ message: "Review șters cu succes." });
+        res.status(200).json({ message: "Review salvat cu succes!", review });
 
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Eroare la ștergerea review-ului." });
+        res.status(500).json({ message: "Eroare la salvarea review-ului." });
     }
 });
 
