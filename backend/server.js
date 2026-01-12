@@ -22,6 +22,18 @@ const reviewRouter = require('./routes/reviewRouter');
 Utilizator.hasMany(Conferinta, { foreignKey: 'organizatorId', as: 'ConferinteOrganizate' });
 Conferinta.belongsTo(Utilizator, { foreignKey: 'organizatorId', as: 'Organizator' });
 
+// -------------------- 1.1. CONFERINTA <-> REVIEWERI (Many-to-Many) --------------------
+// O conferință are mai mulți revieweri, un reviewer e la mai multe conferințe
+// Prin tabelul de legătură 'ConferintaRevieweri'
+Conferinta.belongsToMany(Utilizator, { through: 'ConferintaRevieweri', as: 'Revieweri' });
+Utilizator.belongsToMany(Conferinta, { through: 'ConferintaRevieweri', as: 'ConferinteDeReview' });
+
+// -------------------- 1.2. CONFERINTA <-> PARTICIPANTI (Spectatori/Autori) --------------------
+// Un utilizator se poate înscrie la mai multe conferințe ca participant
+// O conferință are mai mulți participanți
+Conferinta.belongsToMany(Utilizator, { through: 'Participari', as: 'Participanti' });
+Utilizator.belongsToMany(Conferinta, { through: 'Participari', as: 'ConferinteLaCareParticip' });
+
 // -------------------- 2. UTILIZATOR <-> ARTICOL (AUTOR) --------------------
 Utilizator.hasMany(Articol, { foreignKey: 'autorId', as: 'ArticoleTrimise' });
 Articol.belongsTo(Utilizator, { foreignKey: 'autorId', as: 'Autor' });
