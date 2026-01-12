@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindMeet</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="app.js"></script>
+</head>
+<body>
+    <section id="auth-section" class="page auth-page">
+        <div class="auth-container">
+            <div class="auth-box">
+                <div class="logo">Mind<span>Meet</span></div>
+                <div class="auth-tabs">
+                    <button id="login-tab" class="active" onclick="toggleAuthForm('login')">Log In</button>
+                    <button id="signup-tab" onclick="toggleAuthForm('signup')">Înregistrare</button>
+                </div>
+
+                <form id="login-form" class="auth-form">
+                    <h2>Log In</h2>
+                    <input type="email" id="login-email" placeholder="Email" required>
+                    <input type="password" id="login-pass" placeholder="Parolă" required>
+                    <button type="submit" class="cta-button">Intră în cont</button>
+                </form>
+
+                <form id="signup-form" class="auth-form hidden">
+                    <h2>Cont Nou</h2>
+                    <input type="text" id="reg-name" placeholder="Nume Complet" required>
+                    <input type="email" id="reg-email" placeholder="Email" required>
+                    <input type="password" id="reg-pass" placeholder="Parolă" required>
+                    <select id="reg-role" required>
+                        <option value="" disabled selected>Alege rolul</option>
+                        <option value="AUTOR">Autor</option>
+                        <option value="ORGANIZATOR">Organizator</option>
+                        <option value="REVIEWER">Reviewer</option>
+                    </select>
+                    <button type="submit" class="cta-button">Înregistrare</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section id="main-section" class="page hidden">
+        <nav class="navbar">
+            <div class="logo">Mind<span>Meet</span></div>
+            <ul class="nav-links">
+                <li><a href="#" onclick="showView('view-dashboard')">Dashboard</a></li>
+                <li><button onclick="logout()" class="btn-logout">Logout</button></li>
+            </ul>
+        </nav>
+
+        <div class="user-info-bar">
+            <div class="container">
+             <p>Bună, <strong id="user-display-name">...</strong>! | Rol: <span id="user-display-role" class="role-badge">...</span></p>
+            </div>
+        </div>
+
+        <header class="hero">
+            <h1>Bine ai venit pe MindMeet</h1>
+        </header>
+
+        <main class="container">
+            <div id="content-area">
+                <div id="view-dashboard" class="content-view">
+                    <div class="header-with-action">
+                        <h2>Conferințele mele</h2>
+                        <button id="btn-show-create-conf" class="cta-button small hidden" onclick="showView('view-create-conf')">+ Conferință Nouă</button>
+                    </div>
+                    <div id="conference-list" class="grid"></div>
+                </div>
+
+                <div id="view-create-conf" class="content-view hidden">
+                    <button class="btn-secondary" onclick="showView('view-dashboard')" style="margin-bottom: 20px;">← Înapoi la listă</button>
+                    <h2>Creează o Conferință Nouă</h2>
+                    <form id="form-create-conference" class="auth-form" style="max-width: 500px; margin-top: 20px;">
+                        <input type="text" id="conf-title" placeholder="Titlu Conferință (ex: Web Tech 2026)" required>
+                        <textarea id="conf-desc" placeholder="Descriere conferință..." required style="min-height: 100px; padding: 14px; border-radius: 8px; border: 1.5px solid #e2e8f0;"></textarea>
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.8rem; color: #64748b;">Data:</label>
+                                <input type="date" id="conf-date" required>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.8rem; color: #64748b;">Ora:</label>
+                                <input type="time" id="conf-time" required> </div>
+                        </div>
+                        <button type="submit" class="cta-button">Salvează Conferința</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+
+    </section>
+</body>
+</html>

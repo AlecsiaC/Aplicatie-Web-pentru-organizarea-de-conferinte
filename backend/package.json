@@ -14,5 +14,8 @@
     "nodemon": "^3.1.11",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
+  },
+  "dependencies": {
+    "cors": "^2.8.5"
   }
 }
