@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 const API_URL = "http://localhost:3000/api";
 let currentConferenceId = null;
+=======
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:3000/api' 
+    : 'https://aplicatie-web-pentru-organizarea-de.onrender.com/api';
+let currentConferenceId = null; // NOU: Salvăm ID-ul conferinței curente
+>>>>>>> 84bbabe87b08280db793b98f942287ce005d7dfd
 
 // 1. Functie pentru Inregistrare (POST /api/utilizatori)
 async function registerUser(event) {
