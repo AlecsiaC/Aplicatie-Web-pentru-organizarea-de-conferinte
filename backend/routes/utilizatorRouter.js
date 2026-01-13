@@ -20,7 +20,27 @@ router.get('/', async (req, res) => {
 // POST: Creează un utilizator nou / Înregistrare (http://localhost:3000/api/utilizatori)
 router.post('/', async (req, res) => {
     try {
-        const nouUtilizator = await Utilizator.create(req.body);
+        const { numeUtilizator, email, parola, rol } = req.body;
+
+        // 1. Definim regula: minim 8 caractere, cel puțin o literă și o cifră
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+
+        // 2. Verificăm dacă parola respectă regula
+        if (!passwordRegex.test(parola)) {
+            return res.status(400).json({ 
+                message: "Parola trebuie să aibă minim 8 caractere și să conțină atât litere cât și cifre." 
+            });
+        }
+
+        // 3. Dacă a trecut de validare, creăm utilizatorul
+        // Putem folosi req.body sau obiectul reconstruit
+        const nouUtilizator = await Utilizator.create({
+            numeUtilizator,
+            email,
+            parola,
+            rol
+        });
+
         res.status(201).json(nouUtilizator);
     } catch (err) {
         if (err.name === 'SequelizeUniqueConstraintError') {
