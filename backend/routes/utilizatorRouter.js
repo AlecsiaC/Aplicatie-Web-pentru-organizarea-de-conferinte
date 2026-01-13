@@ -6,7 +6,7 @@ const Utilizator = require('../models/utilizator');
 // 1. RUTE GENERALE
 // ==========================================
 
-// GET: Toți utilizatorii (http://localhost:3000/api/utilizatori)
+// GET: Toti utilizatorii (http://localhost:3000/api/utilizatori)
 router.get('/', async (req, res) => {
     try {
         const utilizatori = await Utilizator.findAll();
@@ -17,23 +17,19 @@ router.get('/', async (req, res) => {
     }
 });
 
-// POST: Creează un utilizator nou / Înregistrare (http://localhost:3000/api/utilizatori)
+// POST: Creeaza un utilizator nou / Inregistrare (http://localhost:3000/api/utilizatori)
 router.post('/', async (req, res) => {
     try {
         const { numeUtilizator, email, parola, rol } = req.body;
 
-        // 1. Definim regula: minim 8 caractere, cel puțin o literă și o cifră
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
 
-        // 2. Verificăm dacă parola respectă regula
         if (!passwordRegex.test(parola)) {
             return res.status(400).json({ 
                 message: "Parola trebuie să aibă minim 8 caractere și să conțină atât litere cât și cifre." 
             });
         }
 
-        // 3. Dacă a trecut de validare, creăm utilizatorul
-        // Putem folosi req.body sau obiectul reconstruit
         const nouUtilizator = await Utilizator.create({
             numeUtilizator,
             email,
@@ -42,13 +38,13 @@ router.post('/', async (req, res) => {
         });
 
         res.status(201).json(nouUtilizator);
-    } catch (err) {
-        if (err.name === 'SequelizeUniqueConstraintError') {
-            return res.status(400).json({ message: "Acest email este deja folosit." });
+        } catch (err) {
+            if (err.name === 'SequelizeUniqueConstraintError') {
+                return res.status(400).json({ message: "Acest email este deja folosit." });
+            }
+            console.error(err);
+            res.status(500).json({ message: "Eroare la crearea utilizatorului" });
         }
-        console.error(err);
-        res.status(500).json({ message: "Eroare la crearea utilizatorului" });
-    }
 });
 
 // ==========================================
@@ -113,7 +109,7 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// GET: Un utilizator după ID (http://localhost:3000/api/utilizatori/:id)
+// GET: Un utilizator dupa ID (http://localhost:3000/api/utilizatori/:id)
 router.get('/:idUtilizator', async (req, res) => {
     try {
         const user = await Utilizator.findByPk(req.params.idUtilizator);
@@ -124,7 +120,7 @@ router.get('/:idUtilizator', async (req, res) => {
     }
 });
 
-// DELETE: Șterge un utilizator (http://localhost:3000/api/utilizatori/:id)
+// DELETE: Sterge un utilizator (http://localhost:3000/api/utilizatori/:id)
 router.delete('/:idUtilizator', async (req, res) => {
     try {
         const deleted = await Utilizator.destroy({ where: { id: req.params.idUtilizator } });

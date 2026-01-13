@@ -10,10 +10,6 @@ const Articol = sequelize.define('articol', {
         type: DataTypes.TEXT,
         allowNull: false
     },
-    // autorId: {
-    //     type: DataTypes.INTEGER,
-    //     allowNull: false,
-    // }
     caleFisier:{ //Aici stocam numele fisierului sau link-ul
         type: DataTypes.STRING,
         allowNull: false

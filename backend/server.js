@@ -21,7 +21,7 @@ const utilizatorRouter = require('./routes/utilizatorRouter');
 const articolRouter = require('./routes/articolRouter');
 const reviewRouter = require('./routes/reviewRouter');
 
-// Relații (Păstrate exact cum le-ai scris tu, sunt corecte)
+// Relații
 Utilizator.hasMany(Conferinta, { foreignKey: 'organizatorId', as: 'ConferinteOrganizate' });
 Conferinta.belongsTo(Utilizator, { foreignKey: 'organizatorId', as: 'Organizator' });
 Conferinta.belongsToMany(Utilizator, { through: 'ConferintaRevieweri', as: 'Revieweri' });
@@ -38,7 +38,7 @@ Utilizator.hasMany(Review, { foreignKey: 'reviewerId', as: 'ReviewuriScrise' });
 Review.belongsTo(Utilizator, { foreignKey: 'reviewerId', as: 'Reviewer' });
 
 Articol.belongsToMany(Utilizator, { 
-    through: 'review', // Numele tabelei tale de legătură
+    through: 'review',
     as: 'Revieweri', 
     foreignKey: 'articolId',
     otherKey: 'reviewerId'
@@ -50,7 +50,7 @@ app.use('/api/conferinte', conferintaRouter);
 app.use('/api/articole', articolRouter);
 app.use('/api/reviews', reviewRouter);
 
-// Rută test (ca să vezi în browser dacă serverul chiar e viu)
+// Rută test
 app.get('/api/health', (req, res) => res.json({ status: "running" }));
 
 // Error Handler
@@ -61,12 +61,12 @@ app.use((err, req, res, next) => {
 
 // Kickstart
 sequelize.sync().then(() => {
-    console.log("✅ Database & tables synced!");
+    console.log("Database & tables synced!");
     app.listen(port, () => {
-        console.log(`🚀 Serverul a pornit pe portul ${port}`);
+        console.log(`Serverul a pornit pe portul ${port}`);
     });
 }).catch(err => {
-    console.error("❌ Eroare la sincronizarea bazei de date:", err);
+    console.error("Eroare la sincronizarea bazei de date:", err);
 });
 
 

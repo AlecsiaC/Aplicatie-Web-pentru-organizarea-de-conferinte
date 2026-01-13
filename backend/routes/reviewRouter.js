@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
             return res.status(404).json({ message: "Nu a fost găsită alocarea pentru acest articol/reviewer." });
         }
 
-        // Actualizăm review-ul existent cu verdictul și feedback-ul
+        // Actualizam review-ul existent cu verdictul și feedback-ul
         await review.update({
             verdict: verdict,
             continut: continut,
@@ -32,7 +32,7 @@ router.post('/', async (req, res) => {
         // ----------------------------------------------------
         const toateReviewurile = await Review.findAll({ where: { articolId: articolId } });
         
-        // Verificăm dacă toți cei alocați au apucat să dea verdictul (nu mai e null)
+        // Verificam dacă toti cei alocati au apucat sa dea verdictul (nu mai e null)
         const toțiAuEvaluat = toateReviewurile.every(r => r.verdict !== null);
         
         if (toțiAuEvaluat) {
@@ -60,13 +60,13 @@ router.post('/', async (req, res) => {
 
 
 
-// RUTA GET: Reviewer-ul își vede review-urile alocate
+// RUTA GET: Reviewer-ul isi vede review-urile alocate
 // Exemplu: GET /reviews/reviewer/2
 router.get('/reviews/reviewer/:idReviewer', async (req, res) => {
     try {
         const reviews = await Review.findAll({
             where: { reviewerId: req.params.idReviewer },
-            include: [{model: Articol, as: 'Articol'}] // Ca să vadă și titlul articolului pe care îl corectează
+            include: [{model: Articol, as: 'Articol'}]
         });
         res.status(200).json(reviews);
     } catch (err) {
@@ -75,7 +75,7 @@ router.get('/reviews/reviewer/:idReviewer', async (req, res) => {
     }
 });
 
-// RUTA PUT: Reviewer-ul dă verdictul
+// RUTA PUT: Reviewer-ul da verdictul
 // Exemplu: PUT /reviews/5 (unde 5 e ID-ul review-ului alocat)
 router.put('/reviews/:idReview', async (req, res) => {
     try {
@@ -96,12 +96,12 @@ router.put('/reviews/:idReview', async (req, res) => {
         });
 
         // ----------------------------------------------------
-        // LOGICA COMPLEXĂ: Calculăm dacă Articolul e ACCEPTAT
+        // LOGICA COMPLEXA: Calculam dacă Articolul e ACCEPTAT
         // ----------------------------------------------------
-        // Căutăm toate review-urile acestui articol
+        // Cautam toate review-urile acestui articol
         const toateReviewurile = await Review.findAll({ where: { articolId: review.articolId } });
         
-        // Verificăm dacă toți au dat 'ACCEPTAT'
+        // Verificam dacă toti au dat 'ACCEPTAT'
         const toateAcceptate = toateReviewurile.every(r => r.verdict === 'ACCEPTAT');
         const unulRespins = toateReviewurile.some(r => r.verdict === 'RESPINS');
 
@@ -112,7 +112,6 @@ router.put('/reviews/:idReview', async (req, res) => {
         } else if (unulRespins) {
             await articol.update({ status: 'RESPINS' });
         } else {
-            // Dacă unul a zis acceptat și altul modificări, rămâne în evaluare sau cere modificări
             await articol.update({ status: 'NECESITA_MODIFICARI' });
         }
 

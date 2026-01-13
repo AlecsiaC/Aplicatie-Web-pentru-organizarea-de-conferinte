@@ -18,10 +18,6 @@ const Conferinta = sequelize.define('conferinta', {
         type: DataTypes.TIME,
         allowNull: false
     },
-    // organizatorId: {
-    //     type: DataTypes.INTEGER,
-    //     allowNull: false,
-    // },
     status: {
         type: DataTypes.ENUM,
         allowNull: false,
