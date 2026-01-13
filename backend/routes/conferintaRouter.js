@@ -1,183 +1,208 @@
 const express = require('express');
 const router = express.Router();
-
-// Importăm modelele
-// Ajustăm calea cu ".." pentru a ieși din folderul routes și a intra in models
 const Conferinta = require('../models/conferinta');
-const Utilizator = require('../models/utilizator');
 
-// RUTA GET: Returnează toate conferințele
-router.get('/conferinte', async (req, res) => {
+// IMPORTĂM MODELELE (O singură dată)
+const Utilizator = require('../models/utilizator');
+const Articol = require('../models/articol');
+
+// ==========================================
+// RUTE PENTRU CONFERINȚE
+// ==========================================
+
+// 1. GET: Returnează toate conferințele
+// URL: http://localhost:3000/api/conferinte
+router.get('/', async (req, res) => {
     try {
         const conferinte = await Conferinta.findAll();
         res.status(200).json(conferinte);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare la preluarea conferintelor" });
+        console.error("Eroare la preluarea conferințelor:", err);
+        res.status(500).json({ message: "Eroare la preluarea conferințelor" });
     }
 });
 
-// RUTA POST: Creează o conferință nouă
-router.post('/conferinte', async (req, res) => {
+// GET: Detalii conferință + Revieweri
+// GET: Detalii conferință + Revieweri + Articole
+// backend/routes/conferintaRouter.js
+
+router.get('/:id', async (req, res) => {
     try {
-        // req.body conține datele trimise de client (titlu, descriere, etc.)
-        const nouaConferinta = await Conferinta.create(req.body);
-        res.status(201).json(nouaConferinta);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare la crearea conferintei" });
-    }
-});
-
-// RUTA POST: Un utilizator se înscrie ca participant la o conferință
-// URL: http://localhost:3000/api/conferinte/:idConferinta/inregistrare
-router.post('/conferinte/:idConferinta/inregistrare', async (req, res) => {
-    try {
-        const { idConferinta } = req.params;
-        const { idUtilizator } = req.body; // ID-ul celui care vrea să participe
-
-        // 1. Găsim conferința
-        const conferinta = await Conferinta.findByPk(idConferinta);
-        if (!conferinta) {
-            return res.status(404).json({ message: "Conferința nu există." });
-        }
-
-        // 2. Găsim utilizatorul
-        const user = await Utilizator.findByPk(idUtilizator);
-        if (!user) {
-            return res.status(404).json({ message: "Utilizatorul nu există." });
-        }
-
-        // 3. Facem înscrierea (Magic Method generată de Sequelize din alias-ul 'Participanti')
-        // Funcția este addParticipanti (pentru că aliasul e la plural) sau addParticipant (singular)
-        // Sequelize e tricky aici, de obicei încearcă singularul dacă aliasul e plural, dar să fim siguri:
-        // Vom folosi metoda generică addModel
-        
-        await conferinta.addParticipanti(user); 
-
-        res.status(200).json({ message: `Utilizatorul ${user.numeUtilizator} a fost înregistrat cu succes la conferință!` });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare la înregistrare." });
-    }
-});
-
-// RUTA GET: Vedem cine s-a înscris la o conferință
-router.get('/conferinte/:idConferinta/participanti', async (req, res) => {
-    try {
-        const conferinta = await Conferinta.findByPk(req.params.idConferinta, {
-            include: [{
-                model: Utilizator,
-                as: 'Participanti',
-                attributes: ['id', 'numeUtilizator', 'email']
-            }]
+        const conferinta = await Conferinta.findByPk(req.params.id, {
+            include: [
+                { 
+                    model: Articol, 
+                    as: 'Articole',
+                    // Aici adăugăm includerea autorului în interiorul articolului
+                    include: [
+                        {
+                            model: Utilizator,
+                            as: 'Autor', // Asigură-te că în modelul Articol ai: Articol.belongsTo(Utilizator, { as: 'Autor' })
+                            attributes: ['numeUtilizator'] // Vrem doar numele, nu și parola
+                        }
+                    ]
+                },
+                { 
+                    model: Utilizator, 
+                    as: 'Revieweri' 
+                }
+            ]
         });
 
-        if (!conferinta) return res.status(404).json({ message: "Conferința nu există" });
-
-        res.status(200).json(conferinta.Participanti);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare server" });
+        if (conferinta) {
+            res.status(200).json(conferinta);
+        } else {
+            res.status(404).json({ message: 'Conferinta nu a fost găsită' });
+        }
+    } catch (error) {
+        console.error("EROARE BACKEND:", error);
+        res.status(500).json(error);
     }
 });
 
-// RUTA GET by ID: Returnează o conferință după ID
-router.get('/conferinte/:idConferinta', async (req, res) => {
+// 2. POST: Creează o conferință nouă și alocă revieweri
+// URL: http://localhost:3000/api/conferinte
+// 2. POST: Creează o conferință nouă și alocă revieweri
+// URL: http://localhost:3000/api/conferinte
+router.post('/', async (req, res, next) => {
     try {
-        const conferintaId = parseInt(req.params.idConferinta);
+        const { titluConf, descriere, data, ora, status, organizatorId, reviewerIds } = req.body;
+        
+        // Creăm conferința
+        const nouaConferinta = await Conferinta.create({
+            titluConf,
+            descriere,
+            data,
+            ora,
+            status,
+            organizatorId
+        });
 
-        const conferinta = await Conferinta.findByPk(conferintaId);
+        // --- LOGICA NOUĂ: Alocare automată dacă nu s-au selectat revieweri ---
+        let idsFinali = reviewerIds;
 
-        if (!conferinta) {
-            return res.status(404).json({ message: "Conferința nu a fost găsită." });
+        if (!idsFinali || idsFinali.length === 0) {
+            console.log("Nu s-au selectat revieweri. Căutăm primii 2 revieweri în baza de date...");
+            
+            // Căutăm primii 2 utilizatori care au rolul 'REVIEWER'
+            const revieweriGasiti = await Utilizator.findAll({
+                where: { rol: 'REVIEWER' },
+                limit: 2, // Luăm doar primii 2
+                attributes: ['id'] // Luăm doar ID-ul, nu avem nevoie de restul datelor
+            });
+
+            // Extragem doar ID-urile din rezultatul Sequelize
+            idsFinali = revieweriGasiti.map(r => r.id);
+        }
+        // --------------------------------------------------------------------
+
+        // Alocăm reviewerii (fie cei selectați, fie cei 2 găsiți automat)
+        if (idsFinali && idsFinali.length > 0) {
+            await nouaConferinta.setRevieweri(idsFinali);
         }
 
-        res.status(200).json(conferinta);
-
+        res.status(201).json(nouaConferinta);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare la preluarea conferinței." });
+        console.error("Eroare la crearea conferinței:", err);
+        next(err);
     }
 });
 
+// // 3. GET by ID: Returnează o conferință după ID
+// router.get('/:idConferinta', async (req, res) => {
+//     try {
+//         const conferinta = await Conferinta.findByPk(req.params.idConferinta);
+//         if (!conferinta) {
+//             return res.status(404).json({ message: "Conferința nu a fost găsită." });
+//         }
+//         res.status(200).json(conferinta);
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).json({ message: "Eroare la preluarea conferinței." });
+//     }
+// });
 
-// RUTA DELETE by ID: Șterge o conferință după ID
-
-router.delete('/conferinte/:idConferinta', async (req, res) => {
-    // middleware de autorizare
-
+// 4. DELETE: Șterge o conferință după ID
+router.delete('/:idConferinta', async (req, res) => {
     try {
-        const conferintaId = parseInt(req.params.idConferinta);
-
         const deletedRowCount = await Conferinta.destroy({
-            where: {
-                id: conferintaId
-            }
+            where: { id: req.params.idConferinta }
         });
 
         if (deletedRowCount === 0) {
             return res.status(404).json({ message: "Conferința nu a fost găsită." });
         }
-
         res.sendStatus(204);
-
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Eroare la ștergerea conferinței." });
     }
 });
 
-// RUTA PUT: Alocă un reviewer la o conferință
-// URL exemplu: http://localhost:3000/api/conferinte/1/revieweri/2  (Conferinta 1, User 2)
-router.put('/conferinte/:idConferinta/revieweri/:idReviewer', async (req, res) => {
+// ==========================================
+// RUTE PENTRU REVIEWERI
+// ==========================================
+
+// 5. GET: Vezi revieweri unei conferințe
+router.get('/:idConferinta/revieweri', async (req, res) => {
     try {
-        const conferintaId = req.params.idConferinta;
-        const reviewerId = req.params.idReviewer;
+        const conferinta = await Conferinta.findByPk(req.params.idConferinta, {
+            include: [{
+                model: Utilizator,
+                as: 'Revieweri',
+                attributes: ['id', 'numeUtilizator', 'email']
+            }]
+        });
 
-        // 1. Căutăm conferința
-        const conferinta = await Conferinta.findByPk(conferintaId);
-        if (!conferinta) {
-            return res.status(404).json({ message: "Conferința nu a fost găsită." });
+        if (!conferinta) return res.status(404).json({ message: "Conferința nu există" });
+        res.status(200).json(conferinta.Revieweri);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Eroare server la preluarea reviewerilor" });
+    }
+});
+
+// 6. PUT: Alocă un singur reviewer (manual)
+router.put('/:idConferinta/revieweri/:idReviewer', async (req, res) => {
+    try {
+        const conferinta = await Conferinta.findByPk(req.params.idConferinta);
+        const reviewer = await Utilizator.findByPk(req.params.idReviewer);
+
+        if (!conferinta || !reviewer) {
+            return res.status(404).json({ message: "Conferința sau utilizatorul nu există." });
         }
 
-        // 2. Căutăm reviewer-ul
-        const reviewer = await Utilizator.findByPk(reviewerId);
-        if (!reviewer) {
-            return res.status(404).json({ message: "Utilizatorul nu a fost găsit." });
-        }
-
-        // 3. Validare Business Logic: E chiar reviewer?
         if (reviewer.rol !== 'REVIEWER') {
             return res.status(400).json({ message: "Utilizatorul nu are rolul de REVIEWER." });
         }
 
-        // 4. Facem legătura (Magic Method de la Sequelize)
-        // Deoarece am definit 'as: Revieweri' în server.js, avem funcția addReviewer
         await conferinta.addRevieweri(reviewer);
-
-        res.status(200).json({ message: `Reviewer-ul ${reviewer.numeUtilizator} a fost alocat conferinței.` });
-
+        res.status(200).json({ message: `Reviewer-ul ${reviewer.numeUtilizator} a fost alocat.` });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Eroare la alocarea reviewer-ului." });
     }
 });
 
-// RUTA GET: Vezi revieweri unei conferințe (Ca să verificăm că a mers)
-router.get('/conferinte/:idConferinta/revieweri', async (req, res) => {
+// ==========================================
+// RUTE PENTRU PARTICIPANȚI
+// ==========================================
+
+// 7. POST: Înscriere participant
+router.post('/:idConferinta/inregistrare', async (req, res) => {
     try {
-        const conferinta = await Conferinta.findByPk(req.params.idConferinta, {
-            include: ['Revieweri'] // Aici folosim alias-ul din server.js
-        });
+        const conferinta = await Conferinta.findByPk(req.params.idConferinta);
+        const user = await Utilizator.findByPk(req.body.idUtilizator);
 
-        if (!conferinta) return res.status(404).json({ message: "Conferința nu există" });
+        if (!conferinta || !user) {
+            return res.status(404).json({ message: "Date invalide." });
+        }
 
-        res.status(200).json(conferinta.Revieweri);
+        await conferinta.addParticipanti(user); 
+        res.status(200).json({ message: "Înregistrare cu succes!" });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Eroare server" });
+        res.status(500).json({ message: "Eroare la înregistrare." });
     }
 });
 

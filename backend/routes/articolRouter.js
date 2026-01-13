@@ -1,44 +1,68 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
-// Importăm toate modelele necesare
+// Importăm modelele
 const Articol = require('../models/articol');
 const Utilizator = require('../models/utilizator');
 const Conferinta = require('../models/conferinta');
 const Review = require('../models/review');
 
-// RUTA POST: Autorul propune un articol nou la o conferință + ALOCARE AUTOMATĂ
-router.post('/articole', async (req, res) => {
+// --- CONFIGURARE MULTER (Pentru salvarea PDF-urilor) ---
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/'); // Folderul creat de tine
+    },
+    filename: (req, file, cb) => {
+        // Salvăm fișierul cu un nume unic: timestamp + nume original
+        cb(null, Date.now() + '-' + file.originalname);
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Doar fișierele PDF sunt permise!'), false);
+        }
+    }
+});
+
+// --- RUTA POST: Încărcare articol + Salvare fișier ---
+// Observă 'upload.single('fisier')' - 'fisier' trebuie să fie numele din FormData în Frontend
+router.post('/', upload.single('fisier'), async (req, res) => {
     try {
-        // 1. Extragem datele din cerere
-        const { titluArticol, rezumat, caleFisier, autorId, conferintaId } = req.body;
+        console.log("--- DATE PRIMITE ---");
+        console.log("Body:", req.body);
+        console.log("File:", req.file);
+        // 1. Verificăm dacă fișierul a ajuns la server
+        if (!req.file) {
+            return res.status(400).json({ message: "Nu a fost încărcat niciun fișier PDF." });
+        }
 
-        // 2. Validare: Există Autorul?
+        // 2. Extragem restul datelor trimise lângă fișier
+        const { titluArticol, numeArticol, rezumat, autorId, conferintaId } = req.body;
+
+        const titluFinal = titluArticol || numeArticol || req.file.originalname;
+        const caleFisier = req.file.filename;
+
+        // 3. Validări de bază
         const autor = await Utilizator.findByPk(autorId);
-        if (!autor) {
-            return res.status(404).json({ message: "Autorul nu a fost găsit." });
-        }
-        if (autor.rol !== 'AUTOR') {
-             return res.status(400).json({ message: "Doar autorii pot trimite articole." });
-        }
+        if (!autor) return res.status(404).json({ message: "Autorul nu a fost găsit." });
 
-        // 3. Validare: Există Conferința? + Aducem și Reviewerii ei (OPTIMIZARE)
-        // Aici am combinat validarea cu pregătirea pentru alocare
         const conferinta = await Conferinta.findByPk(conferintaId, {
-            include: [{
-                model: Utilizator,
-                as: 'Revieweri' // Folosim alias-ul definit în server.js
-            }]
+            include: [{ model: Utilizator, as: 'Revieweri' }]
         });
+        if (!conferinta) return res.status(404).json({ message: "Conferința nu a fost găsită." });
 
-        if (!conferinta) {
-            return res.status(404).json({ message: "Conferința nu a fost găsită." });
-        }
-
-        // 4. Creăm Articolul
+        // 4. Creăm Articolul în baza de date
         const nouArticol = await Articol.create({
-            titluArticol,
-            rezumat,
+            titluArticol: titluFinal, // Folosim variabila "titluFinal" stabilită mai sus
+            rezumat: rezumat || "Fără rezumat", // Siguranță în caz că rezumat e gol
             caleFisier,
             autorId,
             conferintaId,
@@ -46,120 +70,75 @@ router.post('/articole', async (req, res) => {
             status: 'IN_EVALUARE'
         });
 
-        // ---------------------------------------------------------
-        // 5. ALGORITMUL DE ALOCARE AUTOMATĂ (Persoana 3)
-        // ---------------------------------------------------------
-        
-        // Verificăm dacă conferința are revieweri alocați
+        // 5. Alocare automată Revieweri
         if (conferinta.Revieweri && conferinta.Revieweri.length > 0) {
-            const listaRevieweri = conferinta.Revieweri;
-
-            // A. Amestecăm lista (Shuffle simplu)
-            const revieweriAmestecati = listaRevieweri.sort(() => 0.5 - Math.random());
-
-            // B. Luăm primii 2 (sau toți, dacă sunt mai puțin de 2)
+            const revieweriAmestecati = conferinta.Revieweri.sort(() => 0.5 - Math.random());
             const ceiAlesi = revieweriAmestecati.slice(0, 2);
 
-            // C. Creăm intrările în tabelul de Review-uri
             for (const rev of ceiAlesi) {
                 await Review.create({
-                    reviewerId: rev.id,      
-                    articolId: nouArticol.id, 
-                    verdict: null,           // NULL permis acum (în așteptare)
-                    continut: ""             
+                    reviewerId: rev.id,
+                    articolId: nouArticol.id,
+                    verdict: null,
+                    continut: ""
                 });
-                console.log(`[ALOCARE] Reviewerul ${rev.numeUtilizator} (ID: ${rev.id}) alocat la articolul ${nouArticol.id}`);
             }
-        } else {
-            console.warn("ATENTIE: Nu există revieweri alocați conferinței! Articolul nu are corectori.");
         }
 
         res.status(201).json({ 
-            message: "Articol trimis și revieweri alocați cu succes!", 
+            message: "Articol și fișier încărcate cu succes!", 
             articol: nouArticol 
         });
 
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare la trimiterea articolului." });
+        console.error("EROARE LA UPLOAD:", err);
+        res.status(500).json({ message: "Eroare la server la procesarea fișierului.", error: err.message });
     }
 });
 
-// RUTA GET: Vezi articolele unui autor
-router.get('/articole/autor/:idAutor', async (req, res) => {
-    try {
-        const articole = await Articol.findAll({
-            where: { autorId: req.params.idAutor }
-        });
-        res.status(200).json(articole);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare server." });
-    }
-});
-
-// RUTA PUT: Autorul încarcă o nouă versiune a articolului
-router.put('/articole/:idArticol', async (req, res) => {
-    try {
-        const { idArticol } = req.params;
-        const { titluArticol, rezumat, caleFisier } = req.body;
-
-        const articol = await Articol.findByPk(idArticol);
-
-        if (!articol) {
-            return res.status(404).json({ message: "Articolul nu a fost găsit." });
-        }
-        
-        await articol.update({
-            titluArticol: titluArticol || articol.titluArticol,
-            rezumat: rezumat || articol.rezumat,
-            caleFisier: caleFisier || articol.caleFisier,
-            versiune: articol.versiune + 1,
-            status: 'IN_EVALUARE'
-        });
-
-        res.status(200).json({ 
-            message: `Versiunea ${articol.versiune} a fost încărcată cu succes!`, 
-            articol 
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Eroare la actualizarea articolului." });
-    }
-});
-
-// RUTA GET: Returnează toate articolele unei conferințe specifice
-// URL: http://localhost:3000/api/conferinte/:idConferinta/articole
+// --- RUTA GET: Articolele unei conferințe ---
 router.get('/conferinte/:idConferinta/articole', async (req, res) => {
     try {
-        const idConferinta = req.params.idConferinta;
-
-        // 1. Verificăm dacă conferința există (opțional, dar recomandat)
-        const conferinta = await Conferinta.findByPk(idConferinta);
-        if (!conferinta) {
-            return res.status(404).json({ message: "Conferința nu a fost găsită." });
-        }
-
-        // 2. Căutăm articolele care au conferintaId egal cu cel din URL
         const articole = await Articol.findAll({
-            where: {
-                conferintaId: idConferinta
-            },
-            // Opțional: Putem include și date despre autor ca să știm cine a scris
+            where: { conferintaId: req.params.idConferinta },
             include: [{
                 model: Utilizator,
-                as: 'Autor', // Presupunând că Sequelize a generat acest alias implicit (sau 'autor')
-                             // Dacă dă eroare, verificăm alias-ul. De obicei e numele modelului.
+                as: 'Autor', // Verifică dacă acest alias e corect în modelul tău
                 attributes: ['numeUtilizator', 'email']
             }]
         });
-
         res.status(200).json(articole);
-
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: "Eroare la preluarea articolelor conferinței." });
+        res.status(500).json({ message: "Eroare la preluarea articolelor." });
+    }
+});
+
+router.get('/download/:id', async (req, res) => {
+    try {
+        // 1. Căutăm articolul în baza de date după ID
+        const articol = await Articol.findByPk(req.params.id);
+
+        if (!articol) {
+            return res.status(404).json({ message: "Articolul nu a fost găsit în baza de date." });
+        }
+
+        // 2. Construim calea către fișierul de pe server
+        // IMPORTANT: Verifică dacă folderul tău se numește 'uploads' și e în rădăcina backend-ului
+        const caleaFizica = path.join(__dirname, '../uploads', articol.caleFisier);
+
+        // 3. Verificăm dacă fișierul chiar există pe disc
+        if (fs.existsSync(caleaFizica)) {
+            // res.download este o funcție magică Express care:
+            // - Spune browserului că urmează un fișier
+            // - Setează numele sub care va fi salvat (punem titlul din DB + extensia .pdf)
+            return res.download(caleaFizica, articol.titluArticol);
+            return res.status(404).json({ message: "Fișierul PDF nu a fost găsit pe server (disk)." });
+        }
+
+    } catch (err) {
+        console.error("Eroare la descărcare:", err);
+        res.status(500).json({ message: "Eroare internă la descărcarea fișierului." });
     }
 });
 

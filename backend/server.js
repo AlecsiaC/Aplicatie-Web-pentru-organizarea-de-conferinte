@@ -1,90 +1,67 @@
-// Express Initialisation
 const express = require("express");
 const cors = require('cors');
 const app = express();
 const port = 3000;
 
+// Middleware
 app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Sequelize Initialisation
+// Sequelize & Modele
 const sequelize = require("./sequelize");
-
-// Import created models
 const Articol = require("./models/articol");
 const Conferinta = require("./models/conferinta");
 const Review = require("./models/review");
 const Utilizator = require("./models/utilizator");
 
+// Import Rute
 const conferintaRouter = require('./routes/conferintaRouter');
 const utilizatorRouter = require('./routes/utilizatorRouter');
 const articolRouter = require('./routes/articolRouter');
 const reviewRouter = require('./routes/reviewRouter');
 
-// Define entities relationship
-// -------------------- 1. UTILIZATOR <-> CONFERINTA (ORGANIZATOR) --------------------
+// Relații (Păstrate exact cum le-ai scris tu, sunt corecte)
 Utilizator.hasMany(Conferinta, { foreignKey: 'organizatorId', as: 'ConferinteOrganizate' });
 Conferinta.belongsTo(Utilizator, { foreignKey: 'organizatorId', as: 'Organizator' });
-
-// -------------------- 1.1. CONFERINTA <-> REVIEWERI (Many-to-Many) --------------------
-// O conferință are mai mulți revieweri, un reviewer e la mai multe conferințe
-// Prin tabelul de legătură 'ConferintaRevieweri'
 Conferinta.belongsToMany(Utilizator, { through: 'ConferintaRevieweri', as: 'Revieweri' });
 Utilizator.belongsToMany(Conferinta, { through: 'ConferintaRevieweri', as: 'ConferinteDeReview' });
-
-// -------------------- 1.2. CONFERINTA <-> PARTICIPANTI (Spectatori/Autori) --------------------
-// Un utilizator se poate înscrie la mai multe conferințe ca participant
-// O conferință are mai mulți participanți
 Conferinta.belongsToMany(Utilizator, { through: 'Participari', as: 'Participanti' });
 Utilizator.belongsToMany(Conferinta, { through: 'Participari', as: 'ConferinteLaCareParticip' });
-
-// -------------------- 2. UTILIZATOR <-> ARTICOL (AUTOR) --------------------
 Utilizator.hasMany(Articol, { foreignKey: 'autorId', as: 'ArticoleTrimise' });
 Articol.belongsTo(Utilizator, { foreignKey: 'autorId', as: 'Autor' });
-
-// -------------------- 3. ARTICOL <-> CONFERINTA --------------------
 Conferinta.hasMany(Articol, { foreignKey: 'conferintaId', as: 'Articole' });
 Articol.belongsTo(Conferinta, { foreignKey: 'conferintaId', as: 'Conferinta' });
-
-// -------------------- 4. REVIEW <-> ARTICOL & UTILIZATOR (REVIEWER) --------------------
-// Articol primește review-uri
 Articol.hasMany(Review, { foreignKey: 'articolId', as: 'Reviewuri' });
 Review.belongsTo(Articol, { foreignKey: 'articolId', as: 'Articol' });
-
-// Utilizator (Reviewer) scrie review-uri
 Utilizator.hasMany(Review, { foreignKey: 'reviewerId', as: 'ReviewuriScrise' });
 Review.belongsTo(Utilizator, { foreignKey: 'reviewerId', as: 'Reviewer' });
 
+// --- MONTARE RUTE (MODIFICAT AICI) ---
+// Acum rutele vor fi prefixate clar
+app.use('/api/utilizatori', utilizatorRouter);
+app.use('/api/conferinte', conferintaRouter);
+app.use('/api/articole', articolRouter);
+app.use('/api/reviews', reviewRouter);
 
-// Express middleware
-app.use(
-  express.urlencoded({
-    extended: true,
-  })
-);
-app.use(express.json());
-app.use('/api', conferintaRouter);
-app.use('/api', utilizatorRouter);
-app.use('/api', articolRouter);
-app.use('/api', reviewRouter);
+// Rută test (ca să vezi în browser dacă serverul chiar e viu)
+app.get('/api/health', (req, res) => res.json({ status: "running" }));
 
-// Create a middleware to handle 500 status errors.
+// Error Handler
 app.use((err, req, res, next) => {
-  console.error("[ERROR]:" + err);
-  res.status(500).json({ message: "500 - Server Error" });
+    console.error("[ERROR]:", err);
+    res.status(500).json({ message: "Eroare internă server" });
 });
 
-// Kickstart the Express aplication
-sequelize
-  .sync({ force: false })
-  .then(() => {
-    console.log("Database & tables synced!");
+// Kickstart
+sequelize.sync().then(() => {
+    console.log("✅ Database & tables synced!");
     app.listen(port, () => {
-      console.log("The server is running on http://localhost/:" + port);
+        console.log(`🚀 Serverul a pornit pe portul ${port}`);
     });
-  })
-  .catch((err) => {
-    console.error("Unable to sync database:", err);
-  });
+}).catch(err => {
+    console.error("❌ Eroare la sincronizarea bazei de date:", err);
+});
 
 
 // ruta /create pt crearea tabelului
@@ -96,5 +73,3 @@ app.get("/create", async (req, res, next) => {
     next(err);
   }
 });
-
-
