@@ -33,7 +33,7 @@ const Articol = sequelize.define('articol', {
     },
     status: {
         type: DataTypes.ENUM,
-        values: ['IN_EVALUARE', 'ACCEPTAT', 'RESPINS', 'NECESITA_MODIFICARI'],
+        values: ['IN_EVALUARE','IN_REEVALUARE', 'ACCEPTAT', 'RESPINS', 'NECESITA_MODIFICARI'],
         defaultValue: 'IN_EVALUARE'
     }
 });

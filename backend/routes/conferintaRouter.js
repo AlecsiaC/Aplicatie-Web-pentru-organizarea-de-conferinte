@@ -14,7 +14,15 @@ const Articol = require('../models/articol');
 // URL: http://localhost:3000/api/conferinte
 router.get('/', async (req, res) => {
     try {
-        const conferinte = await Conferinta.findAll();
+        const conferinte = await Conferinta.findAll({
+            include: [
+        { 
+            model: Utilizator, 
+            as: 'Revieweri',
+            attributes: ['id'] // Avem nevoie doar de ID pentru filtrare
+        }
+    ]
+        });
         res.status(200).json(conferinte);
     } catch (err) {
         console.error("Eroare la preluarea conferințelor:", err);
@@ -33,12 +41,18 @@ router.get('/:id', async (req, res) => {
                 { 
                     model: Articol, 
                     as: 'Articole',
-                    // Aici adăugăm includerea autorului în interiorul articolului
                     include: [
                         {
                             model: Utilizator,
-                            as: 'Autor', // Asigură-te că în modelul Articol ai: Articol.belongsTo(Utilizator, { as: 'Autor' })
-                            attributes: ['numeUtilizator'] // Vrem doar numele, nu și parola
+                            as: 'Autor',
+                            attributes: ['numeUtilizator']
+                        },
+                        // Includem reviewerii alocați fiecărui articol
+                        {
+                            model: Utilizator,
+                            as: 'Revieweri', 
+                            attributes: ['id', 'numeUtilizator'],
+                            through: { attributes: ['verdict', 'continut', 'dataReview'] } // Ascundem datele din tabela de legătură
                         }
                     ]
                 },
@@ -122,6 +136,22 @@ router.post('/', async (req, res, next) => {
 //     }
 // });
 
+router.get('/:idConferinta', async (req, res) => {
+    try {
+        const conf = await Conferinta.findByPk(req.params.id, { /* include-urile tale */ });
+        
+        // Verificăm dacă ora a trecut
+        const acum = new Date();
+        const dataConf = new Date(`${conf.data}T${conf.ora}`);
+
+        if (acum > dataConf && conf.status !== 'FINALIZATA') {
+            await conf.update({ status: 'FINALIZATA' });
+        }
+        
+        res.status(200).json(conf);
+    } catch (err) { res.status(500).json(err); }
+});
+
 // 4. DELETE: Șterge o conferință după ID
 router.delete('/:idConferinta', async (req, res) => {
     try {
@@ -204,6 +234,25 @@ router.post('/:idConferinta/inregistrare', async (req, res) => {
         console.error(err);
         res.status(500).json({ message: "Eroare la înregistrare." });
     }
+});
+
+
+router.put('/:id', async (req, res) => {
+    try {
+        const { titluConf, descriere, data, ora, reviewerIds } = req.body;
+        const conferinta = await Conferinta.findByPk(req.params.id);
+
+        if (!conferinta) return res.status(404).json({ message: "Negăsită" });
+
+        await conferinta.update({ titluConf, descriere, data, ora });
+
+        // Actualizăm revieweri (Sequelize va șterge legăturile vechi și le va pune pe cele noi)
+        if (reviewerIds) {
+            await conferinta.setRevieweri(reviewerIds);
+        }
+
+        res.status(200).json(conferinta);
+    } catch (error) { res.status(500).json(error); }
 });
 
 module.exports = router;

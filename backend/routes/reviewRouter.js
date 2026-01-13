@@ -3,6 +3,63 @@ const router = express.Router();
 const Review = require('../models/review');
 const Articol = require('../models/articol');
 
+// POST: Reviewer-ul trimite evaluarea folosind articolId și reviewerId
+router.post('/', async (req, res) => {
+    try {
+        const { articolId, reviewerId, verdict, continut } = req.body;
+
+        // Căutăm review-ul alocat (cel creat automat la upload)
+        const review = await Review.findOne({
+            where: { 
+                articolId: articolId, 
+                reviewerId: reviewerId 
+            }
+        });
+
+        if (!review) {
+            return res.status(404).json({ message: "Nu a fost găsită alocarea pentru acest articol/reviewer." });
+        }
+
+        // Actualizăm review-ul existent cu verdictul și feedback-ul
+        await review.update({
+            verdict: verdict,
+            continut: continut,
+            dataReview: new Date()
+        });
+
+        // ----------------------------------------------------
+        // LOGICA DE ACTUALIZARE STATUS ARTICOL
+        // ----------------------------------------------------
+        const toateReviewurile = await Review.findAll({ where: { articolId: articolId } });
+        
+        // Verificăm dacă toți cei alocați au apucat să dea verdictul (nu mai e null)
+        const toțiAuEvaluat = toateReviewurile.every(r => r.verdict !== null);
+        
+        if (toțiAuEvaluat) {
+            const toateAcceptate = toateReviewurile.every(r => r.verdict === 'ACCEPTAT');
+            const unulRespins = toateReviewurile.some(r => r.verdict === 'RESPINS');
+
+            const articol = await Articol.findByPk(articolId);
+
+            if (toateAcceptate) {
+                await articol.update({ status: 'ACCEPTAT' });
+            } else if (unulRespins) {
+                await articol.update({ status: 'RESPINS' });
+            } else {
+                await articol.update({ status: 'NECESITA_MODIFICARI' });
+            }
+        }
+
+        res.status(200).json({ message: "Review salvat cu succes!", review });
+
+    } catch (err) {
+        console.error("EROARE BACKEND:", err);
+        res.status(500).json({ message: "Eroare la salvarea review-ului." });
+    }
+});
+
+
+
 // RUTA GET: Reviewer-ul își vede review-urile alocate
 // Exemplu: GET /reviews/reviewer/2
 router.get('/reviews/reviewer/:idReviewer', async (req, res) => {

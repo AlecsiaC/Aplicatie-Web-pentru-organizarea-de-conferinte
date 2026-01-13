@@ -37,8 +37,14 @@ Review.belongsTo(Articol, { foreignKey: 'articolId', as: 'Articol' });
 Utilizator.hasMany(Review, { foreignKey: 'reviewerId', as: 'ReviewuriScrise' });
 Review.belongsTo(Utilizator, { foreignKey: 'reviewerId', as: 'Reviewer' });
 
-// --- MONTARE RUTE (MODIFICAT AICI) ---
-// Acum rutele vor fi prefixate clar
+Articol.belongsToMany(Utilizator, { 
+    through: 'review', // Numele tabelei tale de legătură
+    as: 'Revieweri', 
+    foreignKey: 'articolId',
+    otherKey: 'reviewerId'
+});
+
+// MONTARE RUTE
 app.use('/api/utilizatori', utilizatorRouter);
 app.use('/api/conferinte', conferintaRouter);
 app.use('/api/articole', articolRouter);

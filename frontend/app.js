@@ -102,30 +102,60 @@ async function loadConferences() {
 
     try {
         const response = await fetch(`${API_URL}/conferinte`);
-        const conferinte = await response.json();
+        let conferinte = await response.json();
+
+        console.log("Toate conferintele primite:", conferinte); // Uită-te în F12 Console!
+        console.log("Userul curent:", window.currentUser);
+
+        // FILTRARE PENTRU REVIEWER
+        if (window.currentUser && window.currentUser.rol === 'REVIEWER') {
+            conferinte = conferinte.filter(conf => {
+                // Verificăm dacă lista de revieweri a conferinței conține ID-ul utilizatorului logat
+                // Notă: Backend-ul trebuie să includă 'Revieweri' în ruta de GET /api/conferinte
+                return conf.Revieweri && conf.Revieweri.some(rev => rev.id === window.currentUser.id);
+            });
+        }
 
         listElement.innerHTML = ""; 
 
+        if (conferinte.length === 0) {
+            listElement.innerHTML = "<p>Nu ești alocat la nicio conferință momentan.</p>";
+            return;
+        }
+
         conferinte.forEach(conf => {
+            // --- LOGICA DE TIMP PENTRU DASHBOARD ---
+            const acum = new Date();
+            const dataLimita = new Date(`${conf.data}T${conf.ora}`);
+            const esteFinalizata = acum > dataLimita;
+            
+            // Determinăm textul și culoarea statusului
+            const statusText = esteFinalizata ? "FINALIZATA" : (conf.status || "PLANIFICATA");
+            const statusBg = esteFinalizata ? "#fee2e2" : "#ecfdf5"; // Roșu deschis vs Verde deschis
+            const statusColor = esteFinalizata ? "#ef4444" : "#059669"; // Roșu vs Verde
+
             const card = document.createElement('div');
             card.className = 'card';
-            
-            // --- MODIFICARE AICI ---
-            card.style.cursor = 'pointer'; // Arată utilizatorului că poate da click
-            card.onclick = () => openConferenceDetails(conf.id); 
-            // -----------------------
+            card.style.cursor = 'pointer';
+            card.onclick = () => openConferenceDetails(conf.id);
 
             card.innerHTML = `
-                <h3>${conf.titluConf}</h3>
-                <p>${conf.descriere}</p>
-                <div class="card-footer">
-                    <span>📅 ${conf.data} | 🕒 ${conf.ora}</span>
-                    <span class="status-tag">${conf.status}</span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <h3 style="margin: 0;">${conf.titluConf}</h3>
+                    <span class="status-tag" style="background: ${statusBg}; color: ${statusColor}; padding: 2px 10px; border-radius: 15px; font-size: 0.75rem; font-weight: bold; border: 1px solid ${statusColor};">
+                        ${statusText}
+                    </span>
+                </div>
+                <p style="color: #64748b; font-size: 0.9rem; margin: 10px 0;">${conf.descriere}</p>
+                <div class="card-footer" style="display: flex; gap: 15px; color: #94a3b8; font-size: 0.85rem;">
+                    <span>📅 ${conf.data}</span>
+                    <span>🕒 ${conf.ora}</span>
                 </div>
             `;
             listElement.appendChild(card);
         });
     } catch (err) {
+        console.error("Eroare la încărcare:", err);
         listElement.innerHTML = "<p>Eroare la încărcarea datelor.</p>";
     }
 }
@@ -177,6 +207,17 @@ function showView(viewId, skipHistory = false) {
     if (targetView) {
         targetView.classList.remove('hidden');
     }
+
+    // Presupunem că ID-ul secțiunii cu bannerul este 'welcome-section'
+    const welcomeBanner = document.getElementById('welcome-section');
+    if (welcomeBanner) {
+        if (viewId === 'view-dashboard') {
+            welcomeBanner.style.display = 'block';
+        } else {
+            welcomeBanner.style.display = 'none';
+        }
+    }
+
 
     // Gestionăm istoricul doar dacă nu am cerut skip
     if (!skipHistory && window.currentUser) {
@@ -232,20 +273,348 @@ async function handleCreateConference(event) {
         reviewerIds: reviewerIds // NOU: Trimitem și lista de ID-uri
     };
 
+    const method = editingConferenceId ? 'PUT' : 'POST';
+    const url = editingConferenceId ? `${API_URL}/conferinte/${editingConferenceId}` : `${API_URL}/conferinte`;
+
+    if (!editingConferenceId) {
+        payload.organizatorId = window.currentUser.id;
+        payload.status = "PLANIFICATA";
+    }
+
     try {
-        const response = await fetch(`${API_URL}/conferinte`, {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert(editingConferenceId ? "Conferință actualizată!" : "Conferință creată!");
+            resetConferenceForm();
+            showView('view-dashboard');
+            loadConferences();
+        }
+    } catch (err) { console.error(err); }
+}
+
+function resetConferenceForm() {
+    editingConferenceId = null;
+    document.getElementById('form-create-conference').reset();
+    document.querySelector('#view-create-conf h2').innerText = "Creează o Conferință Nouă";
+    document.querySelector('#form-create-conference button[type="submit"]').innerText = "Salvează Conferința";
+}
+
+// Funcție pentru încărcarea reviewerilor în listă (Frontend)
+async function openConferenceDetails(id, skipHistory = false) {
+    if (!id) return;
+    currentConferenceId = id; 
+    
+    try {
+        const response = await fetch(`${API_URL}/conferinte/${id}`);
+        const conf = await response.json();
+        
+        // --- LOGICA DE TIMP CORECTATĂ ---
+        const acum = new Date();
+        // Construim data limita și forțăm interpretarea locală
+        const dataLimita = new Date(`${conf.data}T${conf.ora}`);
+        
+        // Debug în consolă ca să vezi dacă valorile sunt corecte
+        console.log("Acum:", acum);
+        console.log("Limita:", dataLimita);
+        
+        const esteFinalizata = acum > dataLimita;
+
+        // 1. Populare date (asigură-te că ID-ul conf-status-detail există în HTML-ul tău!)
+        document.getElementById('display-conf-title').innerText = conf.titluConf || "Titlu indisponibil";
+        document.getElementById('display-conf-desc').innerText = conf.descriere || "Fără descriere";
+        document.getElementById('display-conf-date').innerText = conf.data || "Data nesetată";
+        document.getElementById('display-conf-time').innerText = conf.ora || "N/A";
+        
+        // FORȚĂM STATUSUL PRINCIPAL AL CONFERINȚEI
+        const statusElement = document.getElementById('display-conf-status');
+        if (statusElement) {
+            if (esteFinalizata) {
+                statusElement.innerText = "FINALIZATA";
+                // Modificăm stilul pentru a indica finalizarea (Roșu)
+                statusElement.style.background = "#fee2e2"; 
+                statusElement.style.color = "#ef4444";
+            } else {
+                statusElement.innerText = conf.status || "PLANIFICATA";
+                // Stilul original din HTML-ul tău (Verde)
+                statusElement.style.background = "#ecfdf5";
+                statusElement.style.color = "#059669";
+            }
+        }
+
+        const authorActionsDiv = document.getElementById('author-actions');
+        if (authorActionsDiv) {
+            const isAutor = window.currentUser && window.currentUser.rol.toUpperCase() === 'AUTOR';
+            
+            // Arătăm containerul cu butonul DOAR dacă ești autor și timpul n-a expirat
+            if (isAutor && !esteFinalizata) {
+                authorActionsDiv.classList.remove('hidden');
+                authorActionsDiv.style.display = 'block';
+            } else {
+                authorActionsDiv.classList.add('hidden');
+                authorActionsDiv.style.display = 'none';
+            }
+        }
+        
+        // 3. Afișare Revieweri
+        const containerRev = document.getElementById('display-conf-reviewers');
+        if (containerRev) {
+            const listaRevieweri = conf.Revieweri || [];
+            containerRev.innerHTML = listaRevieweri.map(r => 
+                `<span class="role-badge" style="background:#e0f2fe; margin-right:5px; padding:2px 8px; border-radius:10px;">👤 ${r.numeUtilizator}</span>`
+            ).join('') || '<p style="font-size:0.8rem; color:#64748b;">Niciun reviewer alocat.</p>';
+        }
+        
+        // 4. Afișare Articole Înscrise
+        const articlesContainer = document.getElementById('articles-list-container');
+        if (articlesContainer) {
+            const articole = conf.Articole || [];
+
+            if (articole.length > 0) {
+                articlesContainer.innerHTML = articole.map(art => {
+                    const isAssignedToMe = window.currentUser.rol === 'REVIEWER' &&
+                        art.Revieweri && art.Revieweri.some(r => r.id === window.currentUser.id);
+
+                    let reviewerActions = "";
+                    // DACĂ E FINALIZATĂ, NU MAI APAR BUTOANELE
+                    if (isAssignedToMe && !esteFinalizata) {
+                        reviewerActions = `
+                            <div class="reviewer-controls" style="margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start;">
+                                <button onclick="submitEvaluation(${art.id}, 'ACCEPTAT')" class="cta-button small" style="background: #10b981; margin:0;">✅ Acceptă</button>
+                                <button onclick="submitEvaluation(${art.id}, 'NECESITA_MODIFICARI')" class="cta-button small" style="background: #f59e0b; margin:0;">📝 Modificări</button>
+                                <button onclick="submitEvaluation(${art.id}, 'RESPINS')" class="cta-button small" style="background: #ef4444; margin:0;">❌ Respinge</button>
+                            </div>
+                        `;
+                    } else if (isAssignedToMe && esteFinalizata) {
+                        reviewerActions = `<p style="color: #ef4444; font-size: 0.8rem; font-style: italic; margin-top:10px;">⌛ Sesiunea de evaluare s-a încheiat.</p>`;
+                    }
+
+                    const isAuthor = window.currentUser.id === art.autorId;
+                    const isOrganizer = window.currentUser.rol === 'ORGANIZATOR';
+                    const canSeeFeedback = isAuthor || isOrganizer;
+                    let authorFeedback = "";
+                    
+                    if (canSeeFeedback && art.Revieweri) {
+                        const needsChanges = isAuthor && art.status === 'NECESITA_MODIFICARI' && !esteFinalizata;
+                        
+                        const verdictColors = {
+                            'ACCEPTAT': { bg: '#dcfce7', text: '#10b981' }, 
+                            'RESPINS': { bg: '#fee2e2', text: '#ef4444' },  
+                            'NECESITA_MODIFICARI': { bg: '#fef3c7', text: '#f59e0b' }, 
+                            'default': { bg: '#f1f5f9', text: '#64748b' }    
+                        };
+                       
+                        authorFeedback = `
+                            <div class="feedback-container" style="margin-top: 15px; padding: 12px; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 6px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h5 style="margin: 0; color: #1e293b; font-size: 0.9rem;">📢 Feedback de la Revieweri:</h5>
+                                    ${needsChanges ? `
+                                        <button onclick="triggerReupload(${art.id})" class="cta-button small" style="background: #3b82f6; margin: 0; padding: 5px 10px;">
+                                            🔄 Reîncărcă
+                                        </button>
+                                    ` : ''}
+                                </div>
+                                ${art.Revieweri.map(rev => {
+                                    const rData = rev.review || {};
+                                    const colors = verdictColors[rData.verdict] || verdictColors['default'];
+                                    return `
+                                        <div style="margin-bottom: 8px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 5px;">
+                                            <p style="margin: 0; font-size: 0.85rem;">
+                                                <strong>${rev.numeUtilizator}:</strong> 
+                                                <span class="status-tag" style="font-size: 0.7rem; background: ${colors.bg}; color: ${colors.text}; border: 1px solid ${colors.text}; padding: 2px 8px; border-radius: 4px;">
+                                                    ${rData.verdict || 'În așteptare'}
+                                                </span>
+                                            </p>
+                                            <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #475569; font-style: italic;">
+                                                "${rData.continut || 'Așteaptă evaluarea.'}"
+                                            </p>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `;
+                    }
+
+                    const statusColors = { 
+                        'ACCEPTAT': '#10b981', 
+                        'RESPINS': '#ef4444', 
+                        'NECESITA_MODIFICARI': '#f59e0b',
+                        'IN_REEVALUARE': '#6366f1', 
+                        'PLANIFICATA': '#64748b' 
+                    };         
+
+                    // 2. IMPORTANT: Aici păstrăm statusul ARTICOLULUI, nu al conferinței
+                    const statusTextArticol = art.status || 'PLANIFICATA';
+                    const currentStatusColor = statusColors[statusTextArticol] || '#64748b';
+
+                    return `
+                        <div class="article-card" style="flex-direction: column; align-items: flex-start; padding: 20px; border-left: 6px solid ${currentStatusColor};">
+                            <div style="display: flex; justify-content: space-between; width: 100%; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 10px;">
+                                <div class="article-info">
+                                    <h4 style="font-size: 1.1rem; margin: 0;">${art.titluArticol || "Fără titlu"}</h4>
+                                    <p style="margin: 5px 0 0 0;">👤 Autor: ${art.Autor ? art.Autor.numeUtilizator : "Necunoscut"}</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span class="status-tag" style="background: ${currentStatusColor}22; color: ${currentStatusColor}; border: 1px solid ${currentStatusColor}; display: block; margin-bottom: 10px;">
+                                        ${statusTextArticol}
+                                    </span>
+                                    <button onclick="downloadArticle(${art.id})" class="btn-download">Descarcă PDF</button>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.85rem; color: #64748b; font-weight: 500;">
+                                🔍 Revieweri alocați: ${art.Revieweri ? art.Revieweri.map(r => r.numeUtilizator).join(', ') : 'În curs...'}
+                            </p>
+                            ${reviewerActions}
+                            ${authorFeedback}
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                articlesContainer.innerHTML = `<p style="color: #64748b; text-align: center;">Nu au fost încărcate articole.</p>`;
+            }
+        }
+        
+        gestioneazaButoaneActiuni(conf);
+        showView('view-conference-details', true); 
+        if (!skipHistory) history.pushState({ view: 'conference-details', id: id }, "", `#conference-${id}`);
+    } catch (err) {
+        console.error("Eroare:", err);
+    }
+}
+
+// Funcție pentru a declanșa selectorul de fișiere pentru un articol specific
+function triggerReupload(articolId) {
+    const fileInput = document.getElementById('article-file-input');
+    // Salvăm ID-ul articolului pe care îl actualizăm într-un atribut custom
+    fileInput.setAttribute('data-update-id', articolId);
+    fileInput.click();
+}
+
+async function submitEvaluation(articolId, status) {
+    const comentariu = prompt(`Introdu feedback-ul pentru verdictul ${status}:`);
+    
+    if (comentariu === null) return; 
+    if (comentariu.trim() === "") {
+        alert("Feedback-ul este obligatoriu!");
+        return;
+    }
+
+    // Mapăm datele conform modelului tău: continut și verdict
+    const payload = {
+        articolId: articolId,
+        reviewerId: window.currentUser.id,
+        verdict: status,     // Corespunde cu coloana 'verdict'
+        continut: comentariu // Corespunde cu coloana 'continut'
+    };
+
+    try {
+        // Asigură-te că URL-ul este corect (ai scris /reviews în fetch)
+        const response = await fetch(`${API_URL}/reviews`, { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
         if (response.ok) {
-            alert("Conferință creată cu succes!");
-            document.getElementById('form-create-conference').reset();
-            showView('view-dashboard');
-            loadConferences();
+            alert(`Verdictul [${status}] a fost salvat!`);
+            await openConferenceDetails(currentConferenceId, true);
+        } else {
+            const error = await response.json();
+            alert("Eroare: " + error.message);
         }
-    } catch (err) { console.error("Eroare la creare:", err); }
+    } catch (err) {
+        console.error("Eroare rețea:", err);
+        alert("Nu s-a putut contacta serverul.");
+    }
+}
+
+// Funcție ajutătoare pentru a curăța codul principal
+function gestioneazaButoaneActiuni(conf) {
+    const isOwner = window.currentUser.rol.toUpperCase() === 'ORGANIZATOR' && conf.organizatorId == window.currentUser.id;
+
+    const btnDelete = document.getElementById('btn-delete-conf');
+    if (btnDelete) {
+        btnDelete.classList.toggle('hidden', !isOwner);
+        if (isOwner) btnDelete.onclick = () => deleteConference(conf.id);
+    }
+
+    // ADAUGĂ ACEST BUTON:
+    let btnEdit = document.getElementById('btn-edit-conf');
+    if (!btnEdit) {
+        // Dacă butonul nu există în HTML, îl creăm din cod lângă cel de ștergere
+        btnEdit = document.createElement('button');
+        btnEdit.id = 'btn-edit-conf';
+        btnEdit.className = 'modern-back-btn'; // Folosim stilul tău existent
+        btnEdit.style.marginLeft = "10px";
+        btnEdit.innerHTML = "✏️ Editează Conferința";
+        btnDelete.parentNode.insertBefore(btnEdit, btnDelete);
+    }
+
+    btnEdit.classList.toggle('hidden', !isOwner);
+    if (isOwner) btnEdit.onclick = () => prepareEditConference(conf);
+}
+
+// Adaugă și această funcție mică pentru a gestiona descărcarea (va deschide PDF-ul în tab nou)
+function downloadArticle(id) {
+    window.open(`${API_URL}/articole/download/${id}`, '_blank');
+}
+
+async function deleteConference(id) {
+    const confirmare = confirm("Ești sigur că vrei să ștergi această conferință? Această acțiune este ireversibilă.");
+    
+    if (!confirmare) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/conferinte/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert("Conferința a fost ștearsă cu succes.");
+            showView('view-dashboard'); // Ne întoarcem la listă
+            loadConferences(); // Reîncărcăm lista de conferințe
+        } else {
+            const error = await response.json();
+            alert("Eroare la ștergere: " + error.message);
+        }
+    } catch (err) {
+        console.error("Eroare rețea la ștergere:", err);
+    }
+}
+
+let editingConferenceId = null; 
+
+async function prepareEditConference(conf) {
+    editingConferenceId = conf.id;
+    
+    // 1. Schimbăm vizualizarea
+    showView('view-create-conf');
+    
+    // 2. Schimbăm titlurile din formular
+    document.querySelector('#view-create-conf h2').innerText = "Editează Conferința";
+    document.querySelector('#form-create-conference button[type="submit"]').innerText = "Actualizează Conferința";
+    
+    // 3. Populăm câmpurile cu datele actuale
+    document.getElementById('conf-title').value = conf.titluConf;
+    document.getElementById('conf-desc').value = conf.descriere;
+    document.getElementById('conf-date').value = conf.data;
+    document.getElementById('conf-time').value = conf.ora;
+    
+    // 4. Marcăm revieweri deja alocați
+    await loadReviewersForSelection(); // Reîncărcăm lista curată
+    const assignedIds = conf.Revieweri ? conf.Revieweri.map(r => r.id) : [];
+    
+    setTimeout(() => {
+        document.querySelectorAll('input[name="reviewer-checkbox"]').forEach(cb => {
+            if (assignedIds.includes(parseInt(cb.value))) {
+                cb.checked = true;
+            }
+        });
+    }, 500); // Mic delay pentru a asigura încărcarea listei de revieweri
 }
 
 function application(){
@@ -282,54 +651,52 @@ function application(){
         fileInput.addEventListener('change', async function() {
             if (this.files.length > 0) {
                 const file = this.files[0];
+                const updateId = this.getAttribute('data-update-id'); // Verificăm dacă e reîncărcare
                 
-                // Validare minimă
-                if (!currentConferenceId) {
-                    alert("Eroare: Nu s-a putut identifica conferința curentă.");
-                    return;
+                const formData = new FormData();
+                formData.append('fisier', file);
+                formData.append('titluArticol', file.name);
+
+                let url = `${API_URL}/articole`;
+                let method = 'POST';
+
+                if (updateId) {
+                    // Caz REÎNCĂRCARE (Update)
+                    url = `${API_URL}/articole/${updateId}`;
+                    method = 'PUT';
+                } else {
+                    // Caz ARTICOL NOU
+                    formData.append('autorId', window.currentUser.id);
+                    formData.append('conferintaId', currentConferenceId);
+                    formData.append('rezumat', 'Versiune inițială');
                 }
 
-                const formData = new FormData();
-                formData.append('fisier', file); // Pentru fișierul PDF
-                formData.append('titluArticol', file.name); // <--- Verifică să NU fie 'numeArticol'
-                formData.append('autorId', window.currentUser.id); // <--- Verifică să NU fie 'idAutor'
-                formData.append('conferintaId', currentConferenceId); // <--- Verifică să NU fie 'idConferinta'
-                formData.append('rezumat', 'Rezumat implicit');
-
-            
-                // Feedback vizual
-                const fileNameDisplay = document.getElementById('file-selected-name');
-                if (fileNameDisplay) fileNameDisplay.innerText = "Se încarcă: " + file.name + "...";
-
                 try {
-                    const response = await fetch(`${API_URL}/articole`, {
-                        method: 'POST',
+                    const response = await fetch(url, {
+                        method: method,
                         body: formData
                     });
 
                     if (response.ok) {
-                        alert("Articolul a fost încărcat cu succes!");
+                        alert(updateId ? "Articol actualizat cu succes!" : "Articol încărcat cu succes!");
                         fileInput.value = ""; // Resetăm input-ul
-                        if (fileNameDisplay) fileNameDisplay.innerText = "";
-                        
-                        // REÎNCĂRCĂM detaliile pentru a vedea noul articol în listă
+                        fileInput.removeAttribute('data-update-id'); // Ștergem ID-ul de update
                         await openConferenceDetails(currentConferenceId, true);
                     } else {
                         const errData = await response.json();
-                        alert("Eroare la upload: " + (errData.message || "Server error"));
+                        alert("Eroare server (400): " + (errData.message || "Date invalide"));
                     }
                 } catch (error) {
-                    console.error("Eroare rețea la upload:", error);
-                    alert("Eroare de conexiune la server.");
+                    console.error("Eroare rețea:", error);
+                    alert("Nu s-a putut contacta serverul.");
                 }
             }
         });
     }
-
     // Pentru a functiona butonul de back
-    window.addEventListener('popstate', function(event) {
+window.addEventListener('popstate', function(event) {
     if (!window.currentUser) return; // Nu facem nimic dacă nu suntem logați
-
+    
     if (event.state) {
         const state = event.state;
         if (state.view === 'conference-details') {
@@ -344,158 +711,4 @@ function application(){
     }
 });
 }
-
-// Funcție pentru încărcarea reviewerilor în listă (Frontend)
-async function loadReviewersForSelection() {
-    const listElement = document.getElementById('reviewer-selection-list');
-    if (!listElement) return;
-
-    listElement.innerHTML = "<p>Se încarcă lista...</p>";
-
-    try {
-        const response = await fetch(`${API_URL}/utilizatori`);
-        const utilizatori = await response.json();
-        
-        // Filtrare pentru a afișa doar cei cu rolul REVIEWER
-        const revieweri = utilizatori.filter(u => u.rol === 'REVIEWER');
-        
-        listElement.innerHTML = ""; 
-
-        if (revieweri.length === 0) {
-            listElement.innerHTML = "<p>Nu există revieweri înregistrați.</p>";
-            return;
-        }
-
-        revieweri.forEach(rev => {
-            const item = document.createElement('label');
-            item.className = "reviewer-item"; // Poți adăuga stil în CSS
-            item.style.display = "flex";
-            item.style.alignItems = "center";
-            item.style.gap = "10px";
-            item.style.marginBottom = "8px";
-            
-            item.innerHTML = `
-                <input type="checkbox" name="reviewer-checkbox" value="${rev.id}">
-                <span>${rev.numeUtilizator}</span>
-            `;
-            listElement.appendChild(item);
-        });
-    } catch (err) {
-        console.error("Eroare la încărcarea reviewerilor:", err);
-        listElement.innerHTML = "<p>Eroare la încărcarea datelor.</p>";
-    }
-}
-
-async function openConferenceDetails(id, skipHistory = false) {
-    if (!id) return;
-    currentConferenceId = id; 
-    
-    try {
-        const response = await fetch(`${API_URL}/conferinte/${id}`);
-        const conf = await response.json();
-        
-        console.log("Date primite de la server:", conf); // Verifică mereu asta în F12!
-
-        // 1. Populare date (asigură-te că numele corespund cu DB-ul tău)
-        // Folosim titluConf pentru că așa e definit în modelul tău din backend
-        document.getElementById('display-conf-title').innerText = conf.titluConf || "Titlu indisponibil";
-        document.getElementById('display-conf-desc').innerText = conf.descriere || "Fără descriere";
-        document.getElementById('display-conf-date').innerText = conf.data || "Data nesetată";
-        document.getElementById('display-conf-time').innerText = conf.ora || "N/A";
-
-        // 2. Afișare Revieweri (Folosim alias-ul 'Revieweri' din Backend)
-        const containerRev = document.getElementById('display-conf-reviewers');
-        if (containerRev) {
-            const listaRevieweri = conf.Revieweri || [];
-            containerRev.innerHTML = listaRevieweri.map(r => 
-                `<span class="role-badge" style="background:#e0f2fe; margin-right:5px; padding:2px 8px; border-radius:10px;">👤 ${r.numeUtilizator}</span>`
-            ).join('') || '<p style="font-size:0.8rem; color:#64748b;">Niciun reviewer alocat.</p>';
-        }
-
-        // 3. Afișare Articole Înscrise
-        const articlesContainer = document.getElementById('articles-list-container');
-        if (articlesContainer) {
-            const articole = conf.Articole || []; 
-            
-            if (articole.length > 0) {
-                articlesContainer.innerHTML = articole.map(art => `
-                    <div class="article-card">
-                        <div class="article-info">
-                            <h4>${art.titluArticol || "Fără titlu"}</h4>
-                            <p>
-                                <span>👤 ${art.Autor ? art.Autor.numeUtilizator : "Autor Necunoscut"}</span> | 
-                                <span>📅 ${new Date(art.createdAt).toLocaleDateString()}</span>
-                            </p>
-                        </div>
-                        
-                        <button onclick="downloadArticle(${art.id})" class="btn-download">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0L16.5 12M12 16.5V3" />
-                            </svg>
-                            Descarcă
-                        </button>
-                    </div>
-                `).join('');
-            } else {
-                articlesContainer.innerHTML = `<p style="color: #64748b; font-style: italic; padding: 20px; text-align: center;">Nu au fost încărcate articole pentru această conferință.</p>`;
-            }
-        }
-
-        gestioneazaButoaneActiuni(conf);
-        showView('view-conference-details', true); 
-
-        if (!skipHistory) {
-            history.pushState({ view: 'conference-details', id: id }, "", `#conference-${id}`);
-        }
-    } catch (err) {
-        console.error("Eroare la încărcarea detaliilor:", err);
-        alert("Nu s-au putut încărca detaliile conferinței.");
-    }
-}
-
-// Funcție ajutătoare pentru a curăța codul principal
-function gestioneazaButoaneActiuni(conf) {
-    const authorActions = document.getElementById('author-actions');
-    if (authorActions && window.currentUser) {
-        const isAutor = window.currentUser.rol.toUpperCase() === 'AUTOR';
-        authorActions.classList.toggle('hidden', !isAutor);
-    }
-
-    const btnDelete = document.getElementById('btn-delete-conf');
-    if (btnDelete && window.currentUser) {
-        const isOwner = window.currentUser.rol.toUpperCase() === 'ORGANIZATOR' && conf.organizatorId == window.currentUser.id;
-        btnDelete.classList.toggle('hidden', !isOwner);
-        if (isOwner) btnDelete.onclick = () => deleteConference(conf.id);
-    }
-}
-
-// Adaugă și această funcție mică pentru a gestiona descărcarea (va deschide PDF-ul în tab nou)
-function downloadArticle(id) {
-    window.open(`${API_URL}/articole/download/${id}`, '_blank');
-}
-
-async function deleteConference(id) {
-    const confirmare = confirm("Ești sigur că vrei să ștergi această conferință? Această acțiune este ireversibilă.");
-    
-    if (!confirmare) return;
-
-    try {
-        const response = await fetch(`${API_URL}/conferinte/${id}`, {
-            method: 'DELETE'
-        });
-
-        if (response.ok) {
-            alert("Conferința a fost ștearsă cu succes.");
-            showView('view-dashboard'); // Ne întoarcem la listă
-            loadConferences(); // Reîncărcăm lista de conferințe
-        } else {
-            const error = await response.json();
-            alert("Eroare la ștergere: " + error.message);
-        }
-    } catch (err) {
-        console.error("Eroare rețea la ștergere:", err);
-    }
-}
-
-
 document.addEventListener('DOMContentLoaded', application);

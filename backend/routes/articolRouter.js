@@ -35,6 +35,10 @@ const upload = multer({
 // --- RUTA POST: Încărcare articol + Salvare fișier ---
 // Observă 'upload.single('fisier')' - 'fisier' trebuie să fie numele din FormData în Frontend
 router.post('/', upload.single('fisier'), async (req, res) => {
+    const conf = await Conferinta.findByPk(req.body.conferintaId);
+    if (new Date() > new Date(`${conf.data}T${conf.ora}`)) {
+        return res.status(403).json({ message: "Conferința s-a încheiat. Nu se mai pot adăuga articole." });
+    }
     try {
         console.log("--- DATE PRIMITE ---");
         console.log("Body:", req.body);
@@ -142,4 +146,97 @@ router.get('/download/:id', async (req, res) => {
     }
 });
 
+router.put('/:id', upload.single('fisier'), async (req, res) => {
+    try {
+        const articol = await Articol.findByPk(req.params.id);
+        if (!articol) return res.status(404).json({ message: "Articol negăsit" });
+
+        // Actualizăm calea fișierului dacă a fost trimis unul nou
+        const updateData = {
+            status: 'IN_REEVALUARE', // Resetăm statusul global pentru a reîncepe evaluarea
+        };
+        
+        if (req.file) {
+            updateData.caleFisier = req.file.path;
+        }
+
+        await articol.update(updateData);
+
+        // OPTIONAL: Resetăm verdictele review-urilor anterioare
+        await Review.update(
+            { verdict: null, continut: "Așteaptă re-evaluare după modificări." },
+            { where: { articolId: articol.id } }
+        );
+
+        res.status(200).json(articol);
+    } catch (error) {
+        res.status(500).json(error);
+    }
+});
+
+
+// În backend/routes/articolRouter.js
+router.delete('/:id', async (req, res) => {
+    try {
+        const articol = await Articol.findByPk(req.params.id);
+        
+        if (!articol) {
+            return res.status(404).json({ message: "Articolul nu a fost găsit." });
+        }
+
+        // Ștergem articolul (Sequelize va șterge automat și referințele din tabela Review dacă ai setat ON DELETE CASCADE)
+        await articol.destroy();
+
+        res.status(200).json({ message: "Articol șters cu succes." });
+    } catch (error) {
+        console.error("Eroare la ștergere:", error);
+        res.status(500).json({ message: "Eroare internă de server." });
+    }
+});
+router.get('/', async (req, res) => {
+    try {
+        const articole = await Articol.findAll({
+            include: [
+                {
+                    model: Utilizator,
+                    as: 'Autor',
+                    attributes: ['id', 'numeUtilizator']
+                },
+                {
+                    model: Conferinta,
+                    as: 'Conferinta', // ADAUGĂ ACEASTĂ LINIE PENTRU A REZOLVA EROAREA
+                    attributes: ['id', 'titluConf']
+                }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+
+        res.status(200).json(articole);
+    } catch (error) {
+        console.error("EROARE GET ARTICOLE:", error);
+        res.status(500).json({ 
+            message: "Eroare la server.", 
+            error: error.message // Aceasta îți va arăta eroarea direct în browser dacă mai apare ceva
+        });
+    }
+});
+
+router.delete('/danger/delete-all', async (req, res) => {
+    try {
+        
+        await Articol.destroy({
+            where: {},
+            truncate: false, // Setează pe true dacă vrei să resetezi ID-urile la 1
+            cascade: true
+        });
+
+        res.status(200).json({ message: "Toate articolele au fost șterse cu succes." });
+    } catch (error) {
+        console.error("Eroare la ștergerea totală:", error);
+        res.status(500).json({ 
+            message: "Eroare la server în timpul ștergerii în masă.",
+            error: error.message 
+        });
+    }
+});
 module.exports = router;
