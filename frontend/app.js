@@ -1,18 +1,21 @@
+// Stabilirea URL-ului de baza pentru API in functie de mediul de rulare (local sau server)
+
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? 'http://localhost:3000/api' 
     : 'https://aplicatie-web-pentru-organizarea-de.onrender.com/api';
-let currentConferenceId = null; // Salvăm ID-ul conferinței curente
+let currentConferenceId = null; // Salvam ID-ul conferintei curente
 
 
 // Functie pentru Inregistrare (POST /api/utilizatori)
 async function registerUser(event) {
-    event.preventDefault();
+    event.preventDefault(); // Opreste reincarcarea paginii
 
     const nume = document.getElementById('reg-name').value;
     const email = document.getElementById('reg-email').value;
     const parola = document.getElementById('reg-pass').value;
     const rol = document.getElementById('reg-role').value;
 
+    // Regula validare parola: minim 8 caractere, o litera si o cifra
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
 
     if (!passwordRegex.test(parola)) {
@@ -21,6 +24,7 @@ async function registerUser(event) {
     }
    
     try {
+        // Trimite datele de inregistrare catre server
         const response = await fetch(`${API_URL}/utilizatori`, {
             method: 'POST',
             headers: {
@@ -62,6 +66,7 @@ async function loginUser(event) {
         const userFound = utilizatori.find(u => u.email === email && u.parola === parola);
 
         if (userFound) {
+            // Salvare sesiune in browser si navigare catre dashboard
             localStorage.setItem('loggedUser', JSON.stringify(userFound));
             
             history.replaceState({ view: 'dashboard' }, "", "#dashboard");
@@ -127,6 +132,7 @@ async function loadConferences() {
             return;
         }
 
+        // Generare carduri pentru fiecare conferinta
         conferinte.forEach(conf => {
             // --- LOGICA DE TIMP PENTRU DASHBOARD ---
             const acum = new Date();
@@ -193,6 +199,7 @@ function showPage(pageId) {
     document.getElementById(pageId).classList.remove('hidden');
 }
 
+// Sterge sesiunea si revine la ecranul de login
 function logout() {
     localStorage.removeItem('loggedUser');
     window.currentUser = null;
@@ -218,6 +225,7 @@ function showView(viewId, skipHistory = false) {
         }
     }
 
+    // Salvare stare in history pentru butonul Back al browserului
     if (!skipHistory && window.currentUser) {
         const currentState = history.state;
         if (!currentState || currentState.view !== viewId) {
@@ -230,7 +238,7 @@ function showView(viewId, skipHistory = false) {
         }
     }
 }
-
+// Incarca lista de revieweri disponibili pentru a fi selectati la crearea unei conferinte
 async function loadReviewersForSelection() {
     const container = document.getElementById('reviewer-selection-list');
     if (!container) return;
@@ -258,6 +266,7 @@ async function loadReviewersForSelection() {
     }
 }
 
+// Seteaza data minima a input-ului la ziua curenta (nu poti crea conferinte in trecut)
 function setMinDateForConference() {
     const dateInput = document.getElementById('conf-date');
     if (dateInput) {
@@ -320,6 +329,7 @@ async function handleCreateConference(event) {
     }
 }
 
+// Reseteaza formularul de conferinta la valorile initiale
 function resetConferenceForm() {
     editingConferenceId = null;
     document.getElementById('form-create-conference').reset();
@@ -350,6 +360,7 @@ async function openConferenceDetails(id, skipHistory = false) {
         document.getElementById('display-conf-date').innerText = conf.data || "Data nesetată";
         document.getElementById('display-conf-time').innerText = conf.ora || "N/A";
         
+        // Afisare revieweri si articole folosind map()
         const statusElement = document.getElementById('display-conf-status');
         if (statusElement) {
             if (esteFinalizata) {
@@ -363,6 +374,7 @@ async function openConferenceDetails(id, skipHistory = false) {
             }
         }
 
+        // Logica complexa pentru afisarea articolelor, butoanelor de feedback si evaluare
         const authorActionsDiv = document.getElementById('author-actions');
         if (authorActionsDiv) {
             const isAutor = window.currentUser && window.currentUser.rol.toUpperCase() === 'AUTOR';
@@ -507,6 +519,7 @@ function triggerReupload(articolId) {
     fileInput.click();
 }
 
+// Trimite evaluarea (verdictul) unui reviewer pentru un articol
 async function submitEvaluation(articolId, status) {
     const comentariu = prompt(`Introdu feedback-ul pentru verdictul ${status}:`);
     
@@ -543,6 +556,7 @@ async function submitEvaluation(articolId, status) {
     }
 }
 
+// Gestioneaza vizibilitatea butoanelor de stergere si editare (doar pentru organizatorul proprietar)
 function gestioneazaButoaneActiuni(conf) {
     const isOwner = window.currentUser.rol.toUpperCase() === 'ORGANIZATOR' && conf.organizatorId == window.currentUser.id;
 
@@ -571,6 +585,7 @@ function downloadArticle(id) {
     window.open(`${API_URL}/articole/download/${id}`, '_blank');
 }
 
+// Sterge o conferinta din baza de date
 async function deleteConference(id) {
     const confirmare = confirm("Ești sigur că vrei să ștergi această conferință? Această acțiune este ireversibilă.");
     
@@ -596,6 +611,7 @@ async function deleteConference(id) {
 
 let editingConferenceId = null; 
 
+// Pregateste formularul de creare pentru editarea unei conferinte existente
 async function prepareEditConference(conf) {
     editingConferenceId = conf.id;
 
@@ -624,10 +640,12 @@ async function prepareEditConference(conf) {
     }, 600);
 }
 
+// Functia principala de initializare a aplicatiei
 function application(){
     console.log("Aplicația a fost inițializată!");
     setMinDateForConference();
 
+    // Restaurare sesiune daca exista in localStorage
     const savedUser = localStorage.getItem('loggedUser');
 
     if (savedUser) {
@@ -636,6 +654,7 @@ function application(){
         completeLogin(user);
     }
 
+    // Atasare evenimente de submit pentru formulare
     const signupForm = document.getElementById('signup-form');
     const loginForm = document.getElementById('login-form');
     const confForm = document.getElementById('form-create-conference');
@@ -652,6 +671,7 @@ function application(){
         confForm.addEventListener('submit', handleCreateConference);
     }  
 
+    // Gestionare incarcare fisiere (Articole noi sau actualizari)
     const fileInput = document.getElementById('article-file-input');
     if (fileInput) {
         fileInput.addEventListener('change', async function() {
@@ -698,6 +718,7 @@ function application(){
         });
     }
 
+// Gestionare buton "Back" browser
 window.addEventListener('popstate', function(event) {
     if (!window.currentUser) return; // daca nu esti logat
     
@@ -715,4 +736,5 @@ window.addEventListener('popstate', function(event) {
     }
 });
 }
+// Porneste aplicatia cand documentul este incarcat
 document.addEventListener('DOMContentLoaded', application);

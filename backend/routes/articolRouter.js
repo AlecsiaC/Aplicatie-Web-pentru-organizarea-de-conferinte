@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const multer = require('multer'); // Modul pentru gestionarea upload-ului de fisiere
 const path = require('path');
 const fs = require('fs');
 
@@ -34,6 +34,7 @@ const upload = multer({
 // --- RUTA POST: Încărcare articol + Salvare fișier ---
 router.post('/', upload.single('fisier'), async (req, res) => {
     const conf = await Conferinta.findByPk(req.body.conferintaId);
+    // Verificam daca perioada de inscriere a expirat
     if (new Date() > new Date(`${conf.data}T${conf.ora}`)) {
         return res.status(403).json({ message: "Conferința s-a încheiat. Nu se mai pot adăuga articole." });
     }
@@ -58,6 +59,7 @@ router.post('/', upload.single('fisier'), async (req, res) => {
         });
         if (!conferinta) return res.status(404).json({ message: "Conferința nu a fost găsită." });
 
+        // Cream intrarea in baza de date pentru noul articol
         const nouArticol = await Articol.create({
             titluArticol: titluFinal, 
             rezumat: rezumat || "Fără rezumat",
@@ -111,6 +113,7 @@ router.get('/conferinte/:idConferinta/articole', async (req, res) => {
     }
 });
 
+// --- RUTA GET: Download fizic al fisierului PDF ---
 router.get('/download/:id', async (req, res) => {
     try {
         const articol = await Articol.findByPk(req.params.id);
@@ -144,6 +147,7 @@ router.get('/download/:id', async (req, res) => {
     }
 });
 
+// --- RUTA PUT: Actualizare articol (Re-upload dupa modificari) ---
 router.put('/:id', upload.single('fisier'), async (req, res) => {
     try {
         const articol = await Articol.findByPk(req.params.id);
@@ -170,6 +174,7 @@ router.put('/:id', upload.single('fisier'), async (req, res) => {
     }
 });
 
+// --- RUTA DELETE: Sterge un articol din baza de date ---
 router.delete('/:id', async (req, res) => {
     try {
         const articol = await Articol.findByPk(req.params.id);
@@ -186,6 +191,8 @@ router.delete('/:id', async (req, res) => {
         res.status(500).json({ message: "Eroare internă de server." });
     }
 });
+
+// --- RUTA GET: Toate articolele (Dashboard general) ---
 router.get('/', async (req, res) => {
     try {
         const articole = await Articol.findAll({
@@ -214,6 +221,7 @@ router.get('/', async (req, res) => {
     }
 });
 
+// --- RUTA CRITICA: Sterge toate articolele din baza de date si review-urile asociate acestora ---
 router.delete('/danger/delete-all', async (req, res) => {
     try {
         
@@ -232,4 +240,6 @@ router.delete('/danger/delete-all', async (req, res) => {
         });
     }
 });
+
+// Exportam router-ul pentru a fi montat in fisierul principal
 module.exports = router;
