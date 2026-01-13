@@ -1,12 +1,11 @@
 :root {
-    --primary-green: #10b981; /* Verde profesional (Emerald) */
-    --dark-green: #059669;    /* Verde pentru hover */
-    --bg-gradient: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); /* Fundal discret verde */
+    --primary-green: #10b981;
+    --dark-green: #059669;
+    --bg-gradient: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
     --white: #ffffff;
     --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }
 
-/* Stiluri specifice pentru Autentificare */
 .auth-page {
    display: flex;
     justify-content: center;
@@ -89,7 +88,7 @@
     border-radius: 8px;
     font-size: 1rem;
     transition: all 0.2s;
-    box-sizing: border-box; /* Previne depășirea lățimii */
+    box-sizing: border-box;
 }
 
 .auth-form input:focus, .auth-form select:focus {
@@ -205,7 +204,7 @@
 
 .nav-links {
     display: flex;
-    list-style: none; /* Elimină punctele negre */
+    list-style: none;
     gap: 20px;
     align-items: center;
     margin: 0;
@@ -223,7 +222,7 @@
 }
 
 .welcome-banner {
-    padding: 20px 0; /* Am redus padding-ul de la 50-60px la 20px pentru a-l face mai subțire */
+    padding: 20px 0;
     margin-bottom: 20px;
     background-color: #f8fafc;
     text-align: center;
@@ -231,12 +230,11 @@
 }
 
 .welcome-banner h1 {
-    font-size: 1.5rem; /* Dimensiune mai mică pentru textul "Bine ai venit" */
+    font-size: 1.5rem;
     margin: 0;
     color: #1e293b;
 }
 
-/* Container principal pentru dashboard */
 .container {
     max-width: 1100px;
     margin: 0 auto;
@@ -290,7 +288,7 @@
     align-items: center;
     gap: 8px;
     background-color: #ffffff;
-    color: #475569; /* Slate 600 */
+    color: #475569;
     border: 1px solid #e2e8f0;
     padding: 8px 16px;
     border-radius: 8px;
@@ -305,7 +303,7 @@
     background-color: #f8fafc;
     color: #0f172a;
     border-color: #cbd5e1;
-    transform: translateX(-4px); /* Efect subtil de retragere */
+    transform: translateX(-4px);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
@@ -316,10 +314,9 @@
 
 .modern-back-btn:hover svg {
     transform: scale(1.1);
-    color: #10b981; /* Culoarea MindMeet la hover */
+    color: #10b981;
 }
 
-/* Containerul pentru fiecare rând de articol */
 .article-card {
     display: flex;
     justify-content: space-between;
@@ -337,12 +334,11 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-/* Stilul butonului de descărcare */
 .btn-download {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background-color: #3b82f6; /* Albastru MindMeet */
+    background-color: #3b82f6;
     color: white;
     padding: 8px 16px;
     border-radius: 8px;
@@ -361,13 +357,11 @@
     transform: scale(0.97);
 }
 
-/* Iconița din buton */
 .btn-download svg {
     width: 18px;
     height: 18px;
 }
 
-/* Info autor și dată */
 .article-info h4 {
     margin: 0 0 4px 0;
     color: #1e293b;
