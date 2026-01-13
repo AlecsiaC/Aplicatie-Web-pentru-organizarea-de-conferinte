@@ -233,6 +233,35 @@ function showView(viewId, skipHistory = false) {
     }
 }
 
+async function loadReviewersForSelection() {
+    // Folosim ID-ul exact din HTML-ul tău
+    const container = document.getElementById('reviewer-selection-list');
+    if (!container) return;
+
+    try {
+        // Asigură-te că ruta aceasta există în backend-ul tău
+        const response = await fetch(`${API_URL}/utilizatori/revieweri`);
+        const revieweri = await response.json();
+
+        if (revieweri.length === 0) {
+            container.innerHTML = "<p style='color: #64748b;'>Nu există revieweri disponibili.</p>";
+            return;
+        }
+
+        // Generăm lista de checkbox-uri
+        container.innerHTML = revieweri.map(rev => `
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #f1f5f9; border-radius: 8px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                <input type="checkbox" name="reviewerIds" value="${rev.id}" style="width: 18px; height: 18px; cursor: pointer;">
+                <span style="font-size: 0.95rem; color: #334155;">👤 ${rev.numeUtilizator}</span>
+            </label>
+        `).join('');
+        
+    } catch (err) {
+        console.error("Eroare la încărcarea reviewerilor:", err);
+        container.innerHTML = "<p style='color: #ef4444;'>Eroare la încărcarea listei de revieweri.</p>";
+    }
+}
+
 function setMinDateForConference() {
     const dateInput = document.getElementById('conf-date');
     if (dateInput) {
@@ -257,11 +286,12 @@ function setMinDateForConference() {
 async function handleCreateConference(event) {
     event.preventDefault();
 
-    // ... (codul tău existent pentru data)
-
-    // COLECTĂM ID-URILE SELECTATE
-    const selectedCheckboxes = document.querySelectorAll('input[name="reviewer-checkbox"]:checked');
+    // 1. COLECTĂM ID-URILE CORECT (Selectorul trebuie să fie [name="reviewerIds"])
+    const selectedCheckboxes = document.querySelectorAll('input[name="reviewerIds"]:checked');
     const reviewerIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
+
+    // Debug: Verifică în consolă dacă aici apar ID-uri (ex: [1, 5])
+    console.log("Revieweri selectați pentru trimitere:", reviewerIds);
 
     const payload = {
         titluConf: document.getElementById('conf-title').value,
@@ -270,16 +300,11 @@ async function handleCreateConference(event) {
         ora: document.getElementById('conf-time').value,
         status: "PLANIFICATA",
         organizatorId: window.currentUser.id,
-        reviewerIds: reviewerIds // NOU: Trimitem și lista de ID-uri
+        reviewerIds: reviewerIds // Această listă va fi folosită de backend pentru asocieri
     };
 
     const method = editingConferenceId ? 'PUT' : 'POST';
     const url = editingConferenceId ? `${API_URL}/conferinte/${editingConferenceId}` : `${API_URL}/conferinte`;
-
-    if (!editingConferenceId) {
-        payload.organizatorId = window.currentUser.id;
-        payload.status = "PLANIFICATA";
-    }
 
     try {
         const response = await fetch(url, {
@@ -293,8 +318,13 @@ async function handleCreateConference(event) {
             resetConferenceForm();
             showView('view-dashboard');
             loadConferences();
+        } else {
+            const err = await response.json();
+            alert("Eroare: " + err.message);
         }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error("Eroare la salvare:", err); 
+    }
 }
 
 function resetConferenceForm() {
@@ -604,17 +634,21 @@ async function prepareEditConference(conf) {
     document.getElementById('conf-date').value = conf.data;
     document.getElementById('conf-time').value = conf.ora;
     
-    // 4. Marcăm revieweri deja alocați
-    await loadReviewersForSelection(); // Reîncărcăm lista curată
+   // 4. Marcăm revieweri deja alocați
+    await loadReviewersForSelection(); 
     const assignedIds = conf.Revieweri ? conf.Revieweri.map(r => r.id) : [];
     
+    // Creștem ușor delay-ul pentru a fi siguri că DOM-ul e gata
     setTimeout(() => {
-        document.querySelectorAll('input[name="reviewer-checkbox"]').forEach(cb => {
+        const checkboxes = document.querySelectorAll('input[name="reviewerIds"]');
+        console.log("Căutăm să bifăm ID-urile:", assignedIds);
+        
+        checkboxes.forEach(cb => {
             if (assignedIds.includes(parseInt(cb.value))) {
                 cb.checked = true;
             }
         });
-    }, 500); // Mic delay pentru a asigura încărcarea listei de revieweri
+    }, 600);
 }
 
 function application(){

@@ -129,15 +129,24 @@ router.get('/download/:id', async (req, res) => {
 
         // 2. Construim calea către fișierul de pe server
         // IMPORTANT: Verifică dacă folderul tău se numește 'uploads' și e în rădăcina backend-ului
-        const caleaFizica = path.join(__dirname, '../uploads', articol.caleFisier);
+       let caleaFizica = path.resolve(__dirname, '..', 'uploads', articol.caleFisier);
+        
+        // Dacă ai salvat calea întreagă în DB (ex: "uploads/123.pdf"), folosim asta:
+        if (articol.caleFisier.startsWith('uploads')) {
+             caleaFizica = path.resolve(__dirname, '..', articol.caleFisier);
+        }
 
-        // 3. Verificăm dacă fișierul chiar există pe disc
+        console.log("Se încearcă descărcarea de la:", caleaFizica);
         if (fs.existsSync(caleaFizica)) {
-            // res.download este o funcție magică Express care:
-            // - Spune browserului că urmează un fișier
-            // - Setează numele sub care va fi salvat (punem titlul din DB + extensia .pdf)
-            return res.download(caleaFizica, articol.titluArticol);
-            return res.status(404).json({ message: "Fișierul PDF nu a fost găsit pe server (disk)." });
+            // Adăugăm .pdf la finalul numelui dacă acesta nu îl are deja
+            const numeDescarcare = articol.titluArticol.endsWith('.pdf') 
+                ? articol.titluArticol 
+                : `${articol.titluArticol}.pdf`;
+
+            return res.download(caleaFizica, numeDescarcare);
+        } else {
+            console.error("Fișierul lipsește de pe disk:", caleaFizica);
+            return res.status(404).json({ message: "Fișierul fizic nu a fost găsit pe server." });
         }
 
     } catch (err) {
